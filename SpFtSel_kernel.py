@@ -302,7 +302,7 @@ class SpFtSel_kernel:
             if self._stall_counter > self._stall_limit:
                 break
 
-        SpFtSel_log.logger.info(f"SPFSR run completed.")
+        SpFtSel_log.logger.info(f"spFtSel run completed.")
 
     def get_feature_names(self, selected_features):
         return [self._features_names[i] for i in selected_features]

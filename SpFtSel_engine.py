@@ -46,7 +46,7 @@ class SpFtSel_engine:
             sp_params['cv_reps_eval'] = 2
             sp_params['num_gain_smoothing'] = 2
         else:
-            raise ValueError('Error: Unknown SPFSR run mode.')
+            raise ValueError('Error: Unknown spFtSel run mode.')
 
         # set other algorithm parameters
         sp_params['run_mode'] = run_mode
