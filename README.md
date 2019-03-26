@@ -1,2 +1,2 @@
-# spFtSel
- Feature Selection via Simultaneous Perturbation Stochastic Approximation
+# spFtSel_py
+The Python code in this repository performs feature ranking and selection via Simultaneous Perturbation Stochastic Approximation (SPSA). The benchmark dataset used is the Ionosphere dataset with the Gaussian Naive Bayes classifier. For more information, please refer to the manuscript: "SPSA-FSR: Simultaneous Perturbation Stochastic Approximation for Feature Selection and Ranking", https://arxiv.org/abs/1804.05589.
