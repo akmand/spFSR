@@ -10,9 +10,8 @@
 from sklearn import preprocessing
 from sklearn.naive_bayes import GaussianNB
 import random
-import numpy as np
 import pandas as pd
-import SpFtSel_engine
+from SpFtSel import *
 
 # make sure the results are repeatable
 np.random.seed(8)
@@ -39,13 +38,13 @@ y = preprocessing.LabelEncoder().fit_transform(y)  # encode y
 wrapper = GaussianNB()
 
 # set the engine parameters
-sp_engine = SpFtSel_engine.SpFtSel_engine(x, y, wrapper)
+sp_engine = SpFtSel(x, y, wrapper)
 
 # - run the engine
 # - first parameter is how many features to select:
 # default value is 0 and it results in automatic feature selection
 # - second parameter is the run mode:
-# two run modes are available: regular (default) or extended
+# two run modes are available: 'regular' (default) or 'extended'
 # - by default, no parallel processing will be performed.
 # to activate parallel processing, please change the
 # sp_params['n_jobs'] value in the SpFtSel_engine class.
