@@ -234,11 +234,11 @@ class SpFtSelKernel:
                 else:
                     imp_diff = self._curr_imp - self._curr_imp_prev
                     ghat_diff = self._ghat - ghat_prev
-                    bb_bottom = sum(imp_diff * ghat_diff)
-                    if bb_bottom < 10**(-7):  # make sure we don't have negative step size
+                    bb_bottom = np.sum(ghat_diff * ghat_diff)
+                    if bb_bottom < 10 ** (-8):  # make sure we don't end up with division by zero
                         self._gain = self._gain_min
                     else:
-                        self._gain = sum(imp_diff * imp_diff) / bb_bottom
+                        self._gain = np.sum(imp_diff * ghat_diff) / bb_bottom
                         self._gain = np.maximum(self._gain_min, (np.minimum(self._gain_max, self._gain)))
                     self._raw_gain_seq.append(self._gain)
                     if iter_i >= self._num_gain_smoothing:
