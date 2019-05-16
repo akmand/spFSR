@@ -75,6 +75,7 @@ class SpFtSelKernel:
         self._gain_max = 1.0
         self._imp_min = 0.0
         self._imp_max = 1.0
+        self._decimals = 5  # for rounding, minimum required = 3
         #####
         self._input_x = None
         self._output_y = None
@@ -194,8 +195,8 @@ class SpFtSelKernel:
                                  cv=cv_task,
                                  scoring=self._scoring,
                                  n_jobs=self._n_jobs)
-        best_value_mean = scores.mean().round(3)
-        best_value_std = scores.std().round(3)
+        best_value_mean = scores.mean().round(self._decimals-2)
+        best_value_std = scores.std().round(self._decimals-2)
         del scores
         return [-1 * best_value_mean, best_value_std]
 
@@ -234,25 +235,24 @@ class SpFtSelKernel:
                 else:
                     imp_diff = self._curr_imp - self._curr_imp_prev
                     ghat_diff = self._ghat - ghat_prev
-                    bb_bottom = np.sum(ghat_diff * ghat_diff)
-                    if bb_bottom < 10 ** (-8):  # make sure we don't end up with division by zero
+                    bb_bottom = np.sum(imp_diff * ghat_diff)
+                    if bb_bottom < 10 ** (-7):  # make sure we don't end up with division by zero
                         self._gain = self._gain_min
                     else:
-                        self._gain = np.sum(imp_diff * ghat_diff) / bb_bottom
+                        self._gain = np.sum(imp_diff * imp_diff) / bb_bottom
                         self._gain = np.maximum(self._gain_min, (np.minimum(self._gain_max, self._gain)))
                     self._raw_gain_seq.append(self._gain)
                     if iter_i >= self._num_gain_smoothing:
-                        raw_gain_seq_subset = self._raw_gain_seq[(iter_i + 1 - self._num_gain_smoothing):(iter_i + 1)]
-                        self._gain = np.mean(raw_gain_seq_subset)  # arithmetic mean
-                        # self._gain = np.power(np.prod(raw_gain_seq_subset), 1/len(raw_gain_seq_subset))  # geometric mean
+                        raw_gain_seq_recent = self._raw_gain_seq[-self._num_gain_smoothing:]
+                        self._gain = np.mean(raw_gain_seq_recent)
             elif self._gain_type == 'mon':
                 self._gain = self._mon_gain_a / ((iter_i + self._mon_gain_A) ** self._mon_gain_alpha)
                 self._raw_gain_seq.append(self._gain)
             else:
                 raise ValueError('Error: unknown gain type')
 
-            SpFtSelLog.logger.debug(f'iteration gain raw = {self._raw_gain_seq[-1]:1.3f}')
-            SpFtSelLog.logger.debug(f'iteration gain smooth = {self._gain:1.3f}')
+            SpFtSelLog.logger.debug(f'iteration gain raw = {self._raw_gain_seq[-1]:1.4f}')
+            SpFtSelLog.logger.debug(f'iteration gain smooth = {self._gain:1.4f}')
 
             self._curr_imp_prev = self._curr_imp.copy()
             self._curr_imp = (self._curr_imp - self._gain * self._ghat).clip(min=self._imp_min, max=self._imp_max)
@@ -272,10 +272,10 @@ class SpFtSelKernel:
             SpFtSelLog.logger.debug(f"same_feature_counter = {same_feature_counter}")
             fs_perf_output = self.eval_feature_set(self._cv_feat_eval, self._curr_imp)
 
-            self._iter_results['values'].append(round(-1 * fs_perf_output[0], 5))
-            self._iter_results['stds'].append(round(fs_perf_output[1], 5))
-            self._iter_results['gains'].append(round(self._gain, 4))
-            self._iter_results['gains_raw'].append(round(self._raw_gain_seq[-1], 4))
+            self._iter_results['values'].append(round(-1 * fs_perf_output[0], self._decimals))
+            self._iter_results['stds'].append(round(fs_perf_output[1], self._decimals))
+            self._iter_results['gains'].append(round(self._gain, self._decimals))
+            self._iter_results['gains_raw'].append(round(self._raw_gain_seq[-1], self._decimals))
             self._iter_results['importances'].append(self._curr_imp)
             self._iter_results['feature_indices'].append(self._selected_features)
 
@@ -304,8 +304,8 @@ class SpFtSelKernel:
         results_values = np.array(self._iter_results.get('values'))
         total_iter_for_opt = np.argmax(results_values)
 
-        return {'wrapper': self._wrapper,
-                'scoring': self._scoring,
+        return {'_wrapper': self._wrapper,
+                '_scoring': self._scoring,
                 'selected_data': selected_data,
                 'iter_results': self._iter_results,
                 'features': self._best_features,
@@ -323,10 +323,10 @@ class SpFtSelKernel:
 
 class SpFtSel:
     def __init__(self, x, y, wrapper, scoring='accuracy'):
-        self.x = x
-        self.y = y
-        self.wrapper = wrapper
-        self.scoring = scoring
+        self._x = x
+        self._y = y
+        self._wrapper = wrapper
+        self._scoring = scoring
         self.results = None
 
     def run(self,
@@ -372,10 +372,10 @@ class SpFtSel:
 
         kernel = SpFtSelKernel(sp_params)
 
-        kernel.set_inputs(x=self.x,
-                          y=self.y,
-                          wrapper=self.wrapper,
-                          scoring=self.scoring)
+        kernel.set_inputs(x=self._x,
+                          y=self._y,
+                          wrapper=self._wrapper,
+                          scoring=self._scoring)
 
         kernel.shuffle_data()
 
