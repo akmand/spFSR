@@ -242,7 +242,9 @@ class SpFtSelKernel:
                         self._gain = np.maximum(self._gain_min, (np.minimum(self._gain_max, self._gain)))
                     self._raw_gain_seq.append(self._gain)
                     if iter_i >= self._num_gain_smoothing:
-                        self._gain = np.mean(self._raw_gain_seq[(iter_i + 1 - self._num_gain_smoothing):(iter_i + 1)])
+                        # self._gain = np.mean(self._raw_gain_seq[(iter_i + 1 - self._num_gain_smoothing):(iter_i + 1)])
+                        raw_gain_seq_subset = self._raw_gain_seq[(iter_i + 1 - self._num_gain_smoothing):(iter_i + 1)]
+                        self._gain = np.power(np.prod(raw_gain_seq_subset), 1/len(raw_gain_seq_subset))
             elif self._gain_type == 'mon':
                 self._gain = self._mon_gain_a / ((iter_i + self._mon_gain_A) ** self._mon_gain_alpha)
                 self._raw_gain_seq.append(self._gain)
@@ -320,7 +322,7 @@ class SpFtSelKernel:
 
 
 class SpFtSel:
-    def __init__(self, x, y, wrapper, scoring):
+    def __init__(self, x, y, wrapper, scoring='accuracy'):
         self.x = x
         self.y = y
         self.wrapper = wrapper
