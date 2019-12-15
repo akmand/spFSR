@@ -352,7 +352,7 @@ class SpFtWgt:
 
     def run(self,
             num_features=0,
-            run_mode='extended',
+            run_mode='regular',
             stratified_cv=True,
             n_jobs=1,
             print_freq=5,
@@ -377,7 +377,7 @@ class SpFtWgt:
         # two gain types are available: bb (barzilai & borwein) or mon (monotone)
         sp_params['gain_type'] = 'bb'
 
-        if run_mode == 'extended':
+        if run_mode == 'regular':
             sp_params['cv_folds'] = 5
             sp_params['cv_reps_eval'] = 5
             sp_params['iter_max'] = 300
@@ -385,7 +385,7 @@ class SpFtWgt:
             sp_params['num_grad_avg'] = 10
             sp_params['cv_reps_grad'] = 1
             sp_params['num_gain_smoothing'] = 1
-        elif run_mode == 'regular':
+        elif run_mode == 'short':
             sp_params['cv_folds'] = 5
             sp_params['iter_max'] = 200
             sp_params['stall_limit'] = 30
