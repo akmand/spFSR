@@ -2,7 +2,7 @@
 # SpFtWgt: Feature Weighting and Feature Selection via SPSA
 # Required Python version >= 3.6
 # G. Yeo & V. Aksakalli
-# GPL-3.0, 2019
+# GPL-3.0, 2020
 
 import numpy as np
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
