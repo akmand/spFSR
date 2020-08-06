@@ -1,6 +1,6 @@
 # spFtSel: Feature Selection and Ranking via SPSA
 # V. Aksakalli & Z. D. Yenice
-# GPL-3.0, 2020
+# GPL-3.0, 2019
 # Please refer to below for more information:
 # https://arxiv.org/abs/1804.05589
 
@@ -77,6 +77,7 @@ class SpFtSelKernel:
         #####
         self._same_count_max = self._iter_max
         self._stall_tolerance = 10e-7
+        self._bb_bottom_threshold = 10e-7
         self._decimals = 5  # for rounding, minimum required = 3
         #####
         self._input_x = None
@@ -244,7 +245,7 @@ class SpFtSelKernel:
                     imp_diff = self._curr_imp - self._curr_imp_prev
                     ghat_diff = self._ghat - ghat_prev
                     bb_bottom = np.sum(imp_diff * ghat_diff)
-                    if bb_bottom < 10 ** (-7):  # make sure we don't end up with division by zero
+                    if bb_bottom < self._bb_bottom_threshold:  # make sure we don't end up with division by zero
                         self._gain = self._gain_min
                     else:
                         self._gain = np.sum(imp_diff * imp_diff) / bb_bottom
