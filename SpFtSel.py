@@ -6,7 +6,6 @@
 
 import logging
 import numpy as np
-from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import KFold, RepeatedKFold, StratifiedKFold, RepeatedStratifiedKFold, cross_val_score
 from sklearn.utils import shuffle
 from joblib import parallel_backend
@@ -46,9 +45,9 @@ class SpFtSelKernel:
         """
         self._perturb_amount = 0.05
         self._gain_min = 0.01
-        self._gain_max = 1.0
+        self._gain_max = 2.0
         #####
-        self._change_min = 0.0001
+        self._change_min = 0
         self._change_max = 0.2
         #####
         self._imp_start_value = 0.0
@@ -78,7 +77,7 @@ class SpFtSelKernel:
         self._same_count_max = self._iter_max
         self._stall_tolerance = 10e-7
         self._bb_bottom_threshold = 10e-7
-        self._decimals = 5  # for rounding, minimum required = 3
+        self._decimals = 5  # for rounding, must be > 3
         #####
         self._input_x = None
         self._output_y = None
@@ -95,7 +94,7 @@ class SpFtSelKernel:
         self._run_time = -1
         self._best_iter = -1
         self._gain = -1
-        self._best_value = -1 * np.inf
+        self._best_value = -1 * np.inf  # SPSA minimizes the obj. function
         self._best_std = np.inf
         self._selected_features = list()
         self._selected_features_prev = list()
@@ -130,7 +129,7 @@ class SpFtSelKernel:
 
     def init_parameters(self):
         self._p = self._input_x.shape[1]
-        if self._starting_imps is not None:
+        if self._starting_imps:
             self._curr_imp = self._starting_imps
             SpFtSelLog.logger.info(f'Starting importance range: ({self._curr_imp.min()}, {self._curr_imp.max()})')
         else:
@@ -206,6 +205,10 @@ class SpFtSelKernel:
         best_value_mean = scores.mean().round(self._decimals - 2)
         best_value_std = scores.std().round(self._decimals - 2)
         del scores
+
+        # sklearn metrics convention is that higher is always better
+        # however, SPSA convention is to minimize the obj. function
+        # so we return the negative of the best value mean
         return [-1 * best_value_mean, best_value_std]
 
     def run_kernel(self):
@@ -268,7 +271,6 @@ class SpFtSelKernel:
 
             curr_change_raw = self._gain * self._ghat
 
-            # print(f"{iter_i}: curr_change_raw = {np.round(curr_change_raw, self._decimals)}")
             SpFtSelLog.logger.debug(f"curr_change_raw = {np.round(curr_change_raw, self._decimals)}")
 
             curr_change_sign = np.where(curr_change_raw > 0.0, +1, -1)
@@ -276,7 +278,6 @@ class SpFtSelKernel:
 
             curr_change_clipped = curr_change_sign * curr_change_abs_clipped
 
-            # print(f"curr_change_clipped = {np.round(curr_change_clipped, self._decimals)}")
             SpFtSelLog.logger.debug(f"curr_change_clipped = {np.round(curr_change_clipped, self._decimals)}")
 
             self._curr_imp = (self._curr_imp - curr_change_clipped).clip(min=self._imp_min, max=self._imp_max)
@@ -293,10 +294,9 @@ class SpFtSelKernel:
                 if same_feature_counter >= self._same_count_max:
                     break
                 same_feature_counter = same_feature_counter + 1
-            SpFtSelLog.logger.debug(f"same_feature_counter = {same_feature_counter}")
 
-            # if same_feature_counter > 1:
-            #     print(f"same_feature_counter = {same_feature_counter}")
+            if same_feature_counter > 1:
+                SpFtSelLog.logger.debug(f"same_feature_counter = {same_feature_counter}")
 
             fs_perf_output = self.eval_feature_set(self._cv_feat_eval, self._curr_imp)
 
@@ -330,7 +330,8 @@ class SpFtSelKernel:
         self._run_time = round((time.time() - start_time) / 60, 2)  # in minutes
         SpFtSelLog.logger.info(f"spFtSel completed in {self._run_time} minutes.")
         SpFtSelLog.logger.info(
-            f"Best value = {np.round(self._best_value, self._decimals)},  Total iterations: {len(self._iter_results.get('values')) - 1}")
+            f"Best value = {np.round(self._best_value, self._decimals)} with " +
+            f"{len(self._best_features )} features and {len(self._iter_results.get('values')) - 1} total iterations. ")
 
     def parse_results(self):
         selected_data = self._input_x[:, self._best_features]
