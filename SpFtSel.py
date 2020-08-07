@@ -1,6 +1,6 @@
 # spFtSel: Feature Selection and Ranking via SPSA
 # V. Aksakalli & Z. D. Yenice
-# GPL-3.0, 2019
+# GPL-3.0, 2020
 # Please refer to below for more information:
 # https://arxiv.org/abs/1804.05589
 
