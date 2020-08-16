@@ -45,9 +45,9 @@ class SpFtSelKernel:
         """
         self._perturb_amount = 0.05
         self._gain_min = 0.01
-        self._gain_max = 2.0
+        self._gain_max = 1.0
         #####
-        self._change_min = 0
+        self._change_min = 0.0
         self._change_max = 0.2
         #####
         self._imp_start_value = 0.0
@@ -390,20 +390,20 @@ class SpFtSel:
 
         if run_mode == 'regular':
             sp_params['cv_folds'] = 5
-            sp_params['cv_reps_eval'] = 5
-            sp_params['cv_reps_grad'] = 5
-            sp_params['iter_max'] = 300
-            sp_params['stall_limit'] = 50
-            sp_params['num_grad_avg'] = 10
-            sp_params['num_gain_smoothing'] = 1
-        elif run_mode == 'short':
-            sp_params['cv_folds'] = 5
             sp_params['cv_reps_eval'] = 1
             sp_params['cv_reps_grad'] = 1
             sp_params['iter_max'] = 150
             sp_params['stall_limit'] = 30
             sp_params['num_grad_avg'] = 4
             sp_params['num_gain_smoothing'] = 2
+        elif run_mode == 'extended':
+            sp_params['cv_folds'] = 5
+            sp_params['cv_reps_eval'] = 5
+            sp_params['cv_reps_grad'] = 5
+            sp_params['iter_max'] = 300
+            sp_params['stall_limit'] = 60
+            sp_params['num_grad_avg'] = 10
+            sp_params['num_gain_smoothing'] = 1
         else:
             raise ValueError('Error: Unknown run mode')
 
