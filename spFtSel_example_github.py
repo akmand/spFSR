@@ -44,13 +44,13 @@ sp_engine = SpFtSel(x, y, wrapper, scoring)
 # 1. num_features: how many features to select
 #    (in addition to features to keep, if any)
 #    default value is 0 and it results in automatic feature selection
-# 2. run_mode: 'regular' (default) or 'short'
+# 2. run_mode: 'regular' (default) or 'extended' (slower, but may give better results)
 # 3. stratified_cv: whether CV should be stratified or not (default is True)
 #    stratified_cv MUST be set to False for regression problems
 # 4. n_jobs: number of cores to be used in cross-validation (default is 1)
 # 5. print_freq: print frequency for the output (default is 5)
 # 6. features_to_keep_indices: indices of features to keep: default is None
-sp_run = sp_engine.run(num_features=5, run_mode='short')
+sp_run = sp_engine.run(num_features=5)
 
 # get the results of the run
 sp_results = sp_run.results
@@ -90,7 +90,7 @@ sp_engine = SpFtSel(x, y, wrapper, scoring)
 
 # for regression problems, you must set stratified_cv to False
 # because the default value of True will not work
-sp_run = sp_engine.run(num_features=5, run_mode='short', stratified_cv=False)
+sp_run = sp_engine.run(num_features=5, stratified_cv=False)
 
 sp_results = sp_run.results
 
