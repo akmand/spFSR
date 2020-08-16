@@ -44,7 +44,7 @@ class SpFtSelKernel:
         algorithm parameters initialization
         """
         self._perturb_amount = 0.05
-        self._gain_min = 0.01
+        self._gain_min = 0.001
         self._gain_max = 1.0
         #####
         self._change_min = 0.0
@@ -393,9 +393,9 @@ class SpFtSel:
             sp_params['cv_reps_eval'] = 1
             sp_params['cv_reps_grad'] = 1
             sp_params['iter_max'] = 150
-            sp_params['stall_limit'] = 30
+            sp_params['stall_limit'] = 50
             sp_params['num_grad_avg'] = 4
-            sp_params['num_gain_smoothing'] = 2
+            sp_params['num_gain_smoothing'] = 1
         elif run_mode == 'extended':
             sp_params['cv_folds'] = 5
             sp_params['cv_reps_eval'] = 5
