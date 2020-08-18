@@ -44,13 +44,16 @@ sp_engine = SpFtSel(x, y, wrapper, scoring)
 # 1. num_features: how many features to select
 #    (in addition to features to keep, if any)
 #    default value is 0 and it results in automatic feature selection
-# 2. run_mode: 'regular' (default) or 'extended' (slower, but may give better results)
+# 2. iter_max: max number of iterations
+#    for small datasets, iter_max = 150 works well (default)
+#    for large datasets, iter_max = 300 works well
+#    iteration stall limit will be: iter_max/3
 # 3. stratified_cv: whether CV should be stratified or not (default is True)
 #    stratified_cv MUST be set to False for regression problems
 # 4. n_jobs: number of cores to be used in cross-validation (default is 1)
 # 5. print_freq: print frequency for the output (default is 5)
 # 6. features_to_keep_indices: indices of features to keep: default is None
-sp_run = sp_engine.run(num_features=5)
+sp_run = sp_engine.run(num_features=5, iter_max=150)
 
 # get the results of the run
 sp_results = sp_run.results
