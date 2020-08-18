@@ -44,21 +44,22 @@ class SpFtSelKernel:
         algorithm parameters initialization
         """
         self._perturb_amount = 0.05
-        self._gain_min = 0.001
+        #####
+        self._gain_min = 0.01
         self._gain_max = 1.0
         #####
         self._change_min = 0.0
         self._change_max = 0.2
         #####
-        self._imp_start_value = 0.0
-        self._imp_min = -99.0
-        self._imp_max = 99.0
+        self._stall_tolerance = 1e-5
+        self._bb_bottom_threshold = 1e-5
+        self._decimals = 5  # for rounding, must be > 3
         #####
-        self._run_mode = params['run_mode']
         self._gain_type = params['gain_type']
         self._features_to_keep_indices = params['features_to_keep_indices']
         self._iter_max = params['iter_max']
         self._stall_limit = params['stall_limit']
+        self._same_count_max = params['stall_limit']
         self._num_grad_avg = params['num_grad_avg']
         self._num_gain_smoothing = params['num_gain_smoothing']
         self._stratified_cv = params['stratified_cv']
@@ -74,11 +75,6 @@ class SpFtSelKernel:
         self._mon_gain_a = params.get('mon_gain_a') if params.get('mon_gain_a') else 0.75
         self._mon_gain_alpha = params.get('mon_gain_alpha') if params.get('mon_gain_alpha') else 0.6
         #####
-        self._same_count_max = self._iter_max
-        self._stall_tolerance = 10e-7
-        self._bb_bottom_threshold = 10e-7
-        self._decimals = 5  # for rounding, must be > 3
-        #####
         self._input_x = None
         self._output_y = None
         self._wrapper = None
@@ -90,12 +86,12 @@ class SpFtSelKernel:
         self._cv_grad_avg = None
         self._curr_imp = None
         self._p = None
+        self._best_value = -1 * np.inf
+        self._best_std = -1
         self._stall_counter = 1
         self._run_time = -1
         self._best_iter = -1
         self._gain = -1
-        self._best_value = -1 * np.inf  # SPSA minimizes the obj. function
-        self._best_std = np.inf
         self._selected_features = list()
         self._selected_features_prev = list()
         self._best_features = list()
@@ -123,7 +119,6 @@ class SpFtSelKernel:
         iter_results['gains'] = list()
         iter_results['gains_raw'] = list()
         iter_results['importances'] = list()
-        iter_results['changes'] = list()
         iter_results['feature_indices'] = list()
         return iter_results
 
@@ -133,11 +128,11 @@ class SpFtSelKernel:
             self._curr_imp = self._starting_imps
             SpFtSelLog.logger.info(f'Starting importance range: ({self._curr_imp.min()}, {self._curr_imp.max()})')
         else:
-            self._curr_imp = np.repeat(self._imp_start_value, self._p)
+            self._curr_imp = np.repeat(0.0, self._p)
         self._ghat = np.repeat(0.0, self._p)
         self._curr_imp_prev = self._curr_imp
-        ###
-        SpFtSelLog.logger.info(f'Algorithm run mode: {self._run_mode}')
+
+    def print_algo_info(self):
         SpFtSelLog.logger.info(f'Wrapper: {self._wrapper}')
         SpFtSelLog.logger.info(f'Scoring metric: {self._scoring}')
         SpFtSelLog.logger.info(f"Number of observations: {self._input_x.shape[0]}")
@@ -155,7 +150,7 @@ class SpFtSelKernel:
             selected_features[self._features_to_keep_indices] = 1.0  # keep these for sure by setting their imp to 1
 
         if self._num_features_selected == 0:  # automated feature selection
-            num_features_to_select = np.sum(selected_features >= self._imp_start_value)
+            num_features_to_select = np.sum(selected_features >= 0.0)
             if num_features_to_select == 0:
                 num_features_to_select = 1  # select at least one!
         else:  # user-supplied _num_features_selected
@@ -205,27 +200,31 @@ class SpFtSelKernel:
         best_value_mean = scores.mean().round(self._decimals - 2)
         best_value_std = scores.std().round(self._decimals - 2)
         del scores
-
         # sklearn metrics convention is that higher is always better
-        # however, SPSA convention is to minimize the obj. function
-        # so we return the negative of the best value mean
-        return [-1 * best_value_mean, best_value_std]
+        # and SPSA here maximizes the obj. function
+        return [best_value_mean, best_value_std]
+
+    def clip_change(self, raw_change):
+        curr_change_raw = self._gain * self._ghat
+        change_sign = np.where(raw_change > 0.0, +1, -1)
+        change_abs_clipped = np.abs(raw_change).clip(min=self._change_min, max=self._change_max)
+        change_clipped = change_sign * change_abs_clipped
+        return change_clipped
 
     def run_kernel(self):
         start_time = time.time()
-        for iter_i in range(self._iter_max):
+
+        curr_iter_no = -1
+        while curr_iter_no < self._iter_max:
+            curr_iter_no += 1
+
             g_matrix = np.array([]).reshape(0, self._p)
 
             for g in range(self._num_grad_avg):
                 delta = np.where(np.random.sample(self._p) >= 0.5, 1, -1)
 
                 imp_plus = self._curr_imp + self._perturb_amount * delta
-                imp_plus = np.maximum(imp_plus, self._imp_min)
-                imp_plus = np.minimum(imp_plus, self._imp_max)
-
                 imp_minus = self._curr_imp - self._perturb_amount * delta
-                imp_minus = np.maximum(imp_minus, self._imp_min)
-                imp_minus = np.minimum(imp_minus, self._imp_max)
 
                 y_plus = self.eval_feature_set(self._cv_grad_avg, imp_plus)[0]
                 y_minus = self.eval_feature_set(self._cv_grad_avg, imp_minus)[0]
@@ -241,91 +240,98 @@ class SpFtSelKernel:
                 self._ghat = ghat_prev
 
             if self._gain_type == 'bb':
-                if iter_i == 0:
+                if curr_iter_no == 0:
                     self._gain = self._gain_min
                     self._raw_gain_seq.append(self._gain)
                 else:
                     imp_diff = self._curr_imp - self._curr_imp_prev
                     ghat_diff = self._ghat - ghat_prev
-                    bb_bottom = np.sum(imp_diff * ghat_diff)
-                    if bb_bottom < self._bb_bottom_threshold:  # make sure we don't end up with division by zero
+                    bb_bottom = -1 * np.sum(imp_diff * ghat_diff)  # -1 due to maximization in SPSA
+                    # make sure we don't end up with division by zero
+                    # or negative gains:
+                    if bb_bottom < self._bb_bottom_threshold:
                         self._gain = self._gain_min
                     else:
                         self._gain = np.sum(imp_diff * imp_diff) / bb_bottom
                         self._gain = np.maximum(self._gain_min, (np.minimum(self._gain_max, self._gain)))
                     self._raw_gain_seq.append(self._gain)
-                    if iter_i >= self._num_gain_smoothing:
+                    if curr_iter_no >= self._num_gain_smoothing:
                         raw_gain_seq_recent = self._raw_gain_seq[-self._num_gain_smoothing:]
                         self._gain = np.mean(raw_gain_seq_recent)
             elif self._gain_type == 'mon':
-                self._gain = self._mon_gain_a / ((iter_i + self._mon_gain_A) ** self._mon_gain_alpha)
+                self._gain = self._mon_gain_a / ((curr_iter_no + self._mon_gain_A) ** self._mon_gain_alpha)
                 self._raw_gain_seq.append(self._gain)
             else:
                 raise ValueError('Error: unknown gain type')
 
-            SpFtSelLog.logger.debug(f'iteration no = {iter_i}')
+            SpFtSelLog.logger.debug(f'iteration no = {curr_iter_no}')
             SpFtSelLog.logger.debug(f'iteration gain raw = {np.round(self._raw_gain_seq[-1], self._decimals)}')
             SpFtSelLog.logger.debug(f'iteration gain smooth = {np.round(self._gain, self._decimals)}')
 
             self._curr_imp_prev = self._curr_imp.copy()
 
+            # make sure change is not too much
             curr_change_raw = self._gain * self._ghat
-
             SpFtSelLog.logger.debug(f"curr_change_raw = {np.round(curr_change_raw, self._decimals)}")
-
-            curr_change_sign = np.where(curr_change_raw > 0.0, +1, -1)
-            curr_change_abs_clipped = np.abs(curr_change_raw).clip(min=self._change_min, max=self._change_max)
-
-            curr_change_clipped = curr_change_sign * curr_change_abs_clipped
-
+            curr_change_clipped = self.clip_change(curr_change_raw)
             SpFtSelLog.logger.debug(f"curr_change_clipped = {np.round(curr_change_clipped, self._decimals)}")
 
-            self._curr_imp = (self._curr_imp - curr_change_clipped).clip(min=self._imp_min, max=self._imp_max)
+            # we use "+" below so that SPSA maximizes
+            self._curr_imp = self._curr_imp + curr_change_clipped
 
             self._selected_features_prev = self.get_selected_features(self._curr_imp_prev)
             self._selected_features = self.get_selected_features(self._curr_imp)
 
-            same_feature_counter = 1
+            same_feature_counter = 0
             curr_imp_orig = self._curr_imp.copy()
+            same_feature_step_size = (self._gain_max - self._gain_min)/self._stall_limit
             while np.array_equal(self._selected_features_prev, self._selected_features):
-                self._curr_imp = curr_imp_orig - same_feature_counter * self._gain_min * self._ghat
-                self._curr_imp = self._curr_imp.clip(min=self._imp_min, max=self._imp_max)
+                same_feature_counter = same_feature_counter + 1
+                curr_step_size = (self._gain_min + same_feature_counter*same_feature_step_size)
+                curr_change_raw = curr_step_size * self._ghat
+                curr_change_clipped = self.clip_change(curr_change_raw)
+                self._curr_imp = curr_imp_orig + curr_change_clipped
                 self._selected_features = self.get_selected_features(self._curr_imp)
                 if same_feature_counter >= self._same_count_max:
+                    # search stalled, start from scratch!
+                    SpFtSelLog.logger.info(f"same_feature_counter_max limit reached, initializing search...")
+                    self._stall_counter = 1  # reset the stall counter
+                    self.init_parameters()
                     break
-                same_feature_counter = same_feature_counter + 1
 
             if same_feature_counter > 1:
                 SpFtSelLog.logger.debug(f"same_feature_counter = {same_feature_counter}")
 
             fs_perf_output = self.eval_feature_set(self._cv_feat_eval, self._curr_imp)
 
-            self._iter_results['values'].append(np.round(-1 * fs_perf_output[0], self._decimals))
+            self._iter_results['values'].append(np.round(fs_perf_output[0], self._decimals))
             self._iter_results['st_devs'].append(np.round(fs_perf_output[1], self._decimals))
             self._iter_results['gains'].append(np.round(self._gain, self._decimals))
             self._iter_results['gains_raw'].append(np.round(self._raw_gain_seq[-1], self._decimals))
             self._iter_results['importances'].append(np.round(self._curr_imp, self._decimals))
-            self._iter_results['changes'].append(np.round(curr_change_clipped, self._decimals))
             self._iter_results['feature_indices'].append(self._selected_features)
 
-            if self._iter_results['values'][iter_i] >= self._best_value + self._stall_tolerance:
+            if self._iter_results['values'][curr_iter_no] >= self._best_value + self._stall_tolerance:
                 self._stall_counter = 1
-                self._best_iter = iter_i
-                self._best_value = self._iter_results['values'][iter_i]
-                self._best_std = self._iter_results['st_devs'][iter_i]
+                self._best_iter = curr_iter_no
+                self._best_value = self._iter_results['values'][curr_iter_no]
+                self._best_std = self._iter_results['st_devs'][curr_iter_no]
                 self._best_features = self._selected_features
                 self._best_imps = self._curr_imp[self._best_features]
             else:
                 self._stall_counter = self._stall_counter + 1
 
-            if iter_i % self._print_freq == 0:
-                SpFtSelLog.logger.info(f"iter_no: {iter_i}, "
+            if curr_iter_no % self._print_freq == 0:
+                SpFtSelLog.logger.info(f"iter_no: {curr_iter_no}, "
                                        f"num_ft: {len(self._selected_features)}, "
-                                       f"value: {self._iter_results['values'][iter_i]}, "
-                                       f"st_dev: {self._iter_results['st_devs'][iter_i]}, "
+                                       f"value: {self._iter_results['values'][curr_iter_no]}, "
+                                       f"st_dev: {self._iter_results['st_devs'][curr_iter_no]}, "
                                        f"best: {self._best_value} @ iter_no {self._best_iter}")
             if self._stall_counter > self._stall_limit:
-                break
+                # search stalled, start from scratch!
+                SpFtSelLog.logger.info(f"stall limit reached, initializing search...")
+                self._stall_counter = 1  # reset the stall counter
+                self.init_parameters()
 
         self._run_time = round((time.time() - start_time) / 60, 2)  # in minutes
         SpFtSelLog.logger.info(f"spFtSel completed in {self._run_time} minutes.")
@@ -367,45 +373,35 @@ class SpFtSel:
 
     def run(self,
             num_features=0,
-            run_mode='regular',
-            stratified_cv=True,
+            stratified_cv=True,  # *** MUST be set to False for regression problems ***
             n_jobs=1,
             print_freq=5,
             starting_imps=None,
             features_to_keep_indices=None):
 
-        # define a dictionary to initialize the SpFtSel kernel
         sp_params = dict()
+
+        # define a dictionary to initialize the SpFtSel kernel
+        # two gain types are available: bb (barzilai & borwein) (default) or mon (monotone)
+        sp_params['gain_type'] = 'bb'
+        ####
         sp_params['num_features'] = num_features
-        sp_params['run_mode'] = run_mode
         sp_params['stratified_cv'] = stratified_cv
         sp_params['n_jobs'] = n_jobs
         sp_params['print_freq'] = print_freq
         sp_params['starting_imps'] = starting_imps
         sp_params['features_to_keep_indices'] = features_to_keep_indices
 
-        # *** for advanced users ***
-        # two gain types are available: bb (barzilai & borwein) or mon (monotone)
-        sp_params['gain_type'] = 'bb'
-
-        if run_mode == 'regular':
-            sp_params['cv_folds'] = 5
-            sp_params['cv_reps_eval'] = 1
-            sp_params['cv_reps_grad'] = 1
-            sp_params['iter_max'] = 150
-            sp_params['stall_limit'] = 50
-            sp_params['num_grad_avg'] = 4
-            sp_params['num_gain_smoothing'] = 1
-        elif run_mode == 'extended':
-            sp_params['cv_folds'] = 5
-            sp_params['cv_reps_eval'] = 5
-            sp_params['cv_reps_grad'] = 5
-            sp_params['iter_max'] = 300
-            sp_params['stall_limit'] = 60
-            sp_params['num_grad_avg'] = 10
-            sp_params['num_gain_smoothing'] = 1
-        else:
-            raise ValueError('Error: Unknown run mode')
+        ####
+        # change below as needed:
+        sp_params['cv_folds'] = 5
+        sp_params['cv_reps_eval'] = 2
+        sp_params['cv_reps_grad'] = 1
+        sp_params['iter_max'] = 300
+        sp_params['stall_limit'] = 100
+        sp_params['num_grad_avg'] = 4
+        sp_params['num_gain_smoothing'] = 1
+        ####
 
         kernel = SpFtSelKernel(sp_params)
 
@@ -415,9 +411,8 @@ class SpFtSel:
                           scoring=self._scoring)
 
         kernel.shuffle_data()
-
         kernel.init_parameters()
-
+        kernel.print_algo_info()
         kernel.gen_cv_task()
 
         with parallel_backend('multiprocessing'):
