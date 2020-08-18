@@ -374,6 +374,7 @@ class SpFtSel:
 
     def run(self,
             num_features=0,
+            iter_max=150,  # set to 300 or more for large datasets
             stratified_cv=True,  # *** MUST be set to False for regression problems ***
             n_jobs=1,
             print_freq=5,
@@ -385,21 +386,20 @@ class SpFtSel:
         # define a dictionary to initialize the SpFtSel kernel
         # two gain types are available: bb (Barzilai & Borwein) (default) or mon (monotone)
         sp_params['gain_type'] = 'bb'
-        ####
+        ###
         sp_params['num_features'] = num_features
+        sp_params['iter_max'] = iter_max
+        sp_params['stall_limit'] = int(sp_params['iter_max']/3)
         sp_params['stratified_cv'] = stratified_cv
         sp_params['n_jobs'] = n_jobs
         sp_params['print_freq'] = print_freq
         sp_params['starting_imps'] = starting_imps
         sp_params['features_to_keep_indices'] = features_to_keep_indices
-
         ######################################
-        # change below as needed:
+        # change below if needed:
         sp_params['cv_folds'] = 5
         sp_params['cv_reps_eval'] = 2
         sp_params['cv_reps_grad'] = 1
-        sp_params['iter_max'] = 300
-        sp_params['stall_limit'] = 100
         sp_params['num_grad_avg'] = 4
         sp_params['num_gain_smoothing'] = 1
         ######################################
