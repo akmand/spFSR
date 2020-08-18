@@ -374,7 +374,7 @@ class SpFtSel:
 
     def run(self,
             num_features=0,
-            iter_max=150,  # set to 300 or 400 for large datasets - stall limit will be 1/3 of this number
+            iter_max=150,  # set to 300 or more for large datasets - stall limit will be 1/3 of this number
             stratified_cv=True,  # *** MUST be set to False for regression problems ***
             n_jobs=1,
             print_freq=5,
