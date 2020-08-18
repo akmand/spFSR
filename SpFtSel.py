@@ -53,7 +53,7 @@ class SpFtSelKernel:
         #####
         self._stall_tolerance = 1e-5
         self._bb_bottom_threshold = 1e-5
-        self._decimals = 5  # for rounding, must be > 3
+        self._decimals = 5  # for display rounding, must be > 3
         #####
         self._gain_type = params['gain_type']
         self._features_to_keep_indices = params['features_to_keep_indices']
@@ -118,7 +118,7 @@ class SpFtSelKernel:
         iter_results['st_devs'] = list()
         iter_results['gains'] = list()
         iter_results['gains_raw'] = list()
-        iter_results['importances'] = list()
+        iter_results['importance'] = list()
         iter_results['feature_indices'] = list()
         return iter_results
 
@@ -205,7 +205,6 @@ class SpFtSelKernel:
         return [best_value_mean, best_value_std]
 
     def clip_change(self, raw_change):
-        curr_change_raw = self._gain * self._ghat
         change_sign = np.where(raw_change > 0.0, +1, -1)
         change_abs_clipped = np.abs(raw_change).clip(min=self._change_min, max=self._change_max)
         change_clipped = change_sign * change_abs_clipped
@@ -220,6 +219,7 @@ class SpFtSelKernel:
 
             g_matrix = np.array([]).reshape(0, self._p)
 
+            # gradient averaging
             for g in range(self._num_grad_avg):
                 delta = np.where(np.random.sample(self._p) >= 0.5, 1, -1)
 
@@ -239,6 +239,7 @@ class SpFtSelKernel:
             if np.count_nonzero(self._ghat) == 0:
                 self._ghat = ghat_prev
 
+            # gain calculation
             if self._gain_type == 'bb':
                 if curr_iter_no == 0:
                     self._gain = self._gain_min
@@ -282,6 +283,7 @@ class SpFtSelKernel:
             self._selected_features_prev = self.get_selected_features(self._curr_imp_prev)
             self._selected_features = self.get_selected_features(self._curr_imp)
 
+            # make sure we move to a new solution
             same_feature_counter = 0
             curr_imp_orig = self._curr_imp.copy()
             same_feature_step_size = (self._gain_max - self._gain_min)/self._stall_limit
@@ -293,10 +295,6 @@ class SpFtSelKernel:
                 self._curr_imp = curr_imp_orig + curr_change_clipped
                 self._selected_features = self.get_selected_features(self._curr_imp)
                 if same_feature_counter >= self._same_count_max:
-                    # search stalled, start from scratch!
-                    SpFtSelLog.logger.info(f"same_feature_counter_max limit reached, initializing search...")
-                    self._stall_counter = 1  # reset the stall counter
-                    self.init_parameters()
                     break
 
             if same_feature_counter > 1:
@@ -308,7 +306,7 @@ class SpFtSelKernel:
             self._iter_results['st_devs'].append(np.round(fs_perf_output[1], self._decimals))
             self._iter_results['gains'].append(np.round(self._gain, self._decimals))
             self._iter_results['gains_raw'].append(np.round(self._raw_gain_seq[-1], self._decimals))
-            self._iter_results['importances'].append(np.round(self._curr_imp, self._decimals))
+            self._iter_results['importance'].append(np.round(self._curr_imp, self._decimals))
             self._iter_results['feature_indices'].append(self._selected_features)
 
             if self._iter_results['values'][curr_iter_no] >= self._best_value + self._stall_tolerance:
@@ -327,9 +325,16 @@ class SpFtSelKernel:
                                        f"value: {self._iter_results['values'][curr_iter_no]}, "
                                        f"st_dev: {self._iter_results['st_devs'][curr_iter_no]}, "
                                        f"best: {self._best_value} @ iter_no {self._best_iter}")
+
             if self._stall_counter > self._stall_limit:
                 # search stalled, start from scratch!
-                SpFtSelLog.logger.info(f"stall limit reached, initializing search...")
+                SpFtSelLog.logger.info(f"iteration stall limit reached, initializing search...")
+                self._stall_counter = 1  # reset the stall counter
+                self.init_parameters()  # set _curr_imp and _g_hat to vectors of zeros
+
+            if same_feature_counter >= self._same_count_max:
+                # search stalled, start from scratch!
+                SpFtSelLog.logger.info(f"same feature counter limit reached, initializing search...")
                 self._stall_counter = 1  # reset the stall counter
                 self.init_parameters()
 
@@ -344,8 +349,8 @@ class SpFtSelKernel:
         results_values = np.array(self._iter_results.get('values'))
         total_iter_for_opt = np.argmax(results_values)
 
-        return {'_wrapper': self._wrapper,
-                '_scoring': self._scoring,
+        return {'wrapper': self._wrapper,
+                'scoring': self._scoring,
                 'selected_data': selected_data,
                 'iter_results': self._iter_results,
                 'features': self._best_features,
@@ -357,10 +362,6 @@ class SpFtSelKernel:
                 'best_std': self._best_std,
                 'run_time': self._run_time,
                 }
-
-
-#######################################
-#######################################
 
 
 class SpFtSel:
@@ -382,7 +383,7 @@ class SpFtSel:
         sp_params = dict()
 
         # define a dictionary to initialize the SpFtSel kernel
-        # two gain types are available: bb (barzilai & borwein) (default) or mon (monotone)
+        # two gain types are available: bb (Barzilai & Borwein) (default) or mon (monotone)
         sp_params['gain_type'] = 'bb'
         ####
         sp_params['num_features'] = num_features
@@ -392,7 +393,7 @@ class SpFtSel:
         sp_params['starting_imps'] = starting_imps
         sp_params['features_to_keep_indices'] = features_to_keep_indices
 
-        ####
+        ######################################
         # change below as needed:
         sp_params['cv_folds'] = 5
         sp_params['cv_reps_eval'] = 2
@@ -401,7 +402,7 @@ class SpFtSel:
         sp_params['stall_limit'] = 100
         sp_params['num_grad_avg'] = 4
         sp_params['num_gain_smoothing'] = 1
-        ####
+        ######################################
 
         kernel = SpFtSelKernel(sp_params)
 
