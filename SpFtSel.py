@@ -397,7 +397,7 @@ class SpFtSel:
         sp_params['cv_folds'] = 5
         sp_params['cv_reps_eval'] = 2
         sp_params['cv_reps_grad'] = 1
-        sp_params['iter_max'] = 300
+        sp_params['iter_max'] =250
         sp_params['stall_limit'] = 100
         sp_params['num_grad_avg'] = 4
         sp_params['num_gain_smoothing'] = 1
