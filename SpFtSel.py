@@ -283,7 +283,7 @@ class SpFtSelKernel:
             self._selected_features_prev = self.get_selected_features(self._curr_imp_prev)
             self._selected_features = self.get_selected_features(self._curr_imp)
 
-            # make sure we move to a new solution
+            # make sure we move to a new solution by going further in the same direction
             same_feature_counter = 0
             curr_imp_orig = self._curr_imp.copy()
             same_feature_step_size = (self._gain_max - self._gain_min)/self._stall_limit
@@ -374,7 +374,7 @@ class SpFtSel:
 
     def run(self,
             num_features=0,
-            iter_max=150,  # set to 300 or more for large datasets
+            iter_max=150,  # set to 300 or 400 for large datasets - stall limit will be 1/3 of this number
             stratified_cv=True,  # *** MUST be set to False for regression problems ***
             n_jobs=1,
             print_freq=5,
