@@ -10,6 +10,7 @@
 import numpy as np
 from sklearn.datasets import load_breast_cancer, load_boston
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+from sklearn import preprocessing
 
 from SpFtSel import SpFtSel
 
@@ -47,7 +48,7 @@ sp_engine = SpFtSel(x, y, wrapper, scoring)
 # 2. iter_max: max number of iterations
 #    for small datasets, iter_max = 150 works well (default)
 #    for large datasets, iter_max = 300 works well
-#    iteration stall limit will be: iter_max/3
+#    iteration stall limit will be iter_max/3
 # 3. stratified_cv: whether CV should be stratified or not (default is True)
 #    stratified_cv MUST be set to False for regression problems
 # 4. n_jobs: number of cores to be used in cross-validation (default is 1)
@@ -89,10 +90,12 @@ wrapper = DecisionTreeRegressor()
 
 scoring = 'r2'
 
+# for regression problems:
+# you MUST set stratified_cv to False
+# as the default value of True will not work
+# you should also scale y to be between 0 and 1 for the algorithm to work properly!
+y = preprocessing.MinMaxScaler().fit_transform(y.reshape(-1, 1)).flatten()
 sp_engine = SpFtSel(x, y, wrapper, scoring)
-
-# for regression problems, you must set stratified_cv to False
-# because the default value of True will not work
 sp_run = sp_engine.run(num_features=5, stratified_cv=False)
 
 sp_results = sp_run.results
