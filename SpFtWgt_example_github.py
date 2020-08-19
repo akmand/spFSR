@@ -24,7 +24,7 @@ n_neighbors = 1
 ####
 n_jobs = -2
 ####
-x, y = prepare_dataset_for_modeling('sonar.csv', is_classification=True)
+x, y = prepare_dataset_for_modeling(dataset, is_classification=True)
 print("dataset = " + dataset + ", shape of x = ", x.shape)
 
 # specify a wrapper classifier to use
