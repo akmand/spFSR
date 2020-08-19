@@ -36,7 +36,9 @@ wrapper = DecisionTreeClassifier()
 # more info on the _scoring metrics can be found here:
 # https://scikit-learn.org/stable/modules/model_evaluation.html
 scoring = 'accuracy'
-
+###
+n_jobs = -2
+###
 # set the engine parameters
 sp_engine = SpFtSel(x, y, wrapper, scoring)
 
@@ -54,7 +56,7 @@ sp_engine = SpFtSel(x, y, wrapper, scoring)
 # 4. n_jobs: number of cores to be used in cross-validation (default is 1)
 # 5. print_freq: print frequency for the output (default is 5)
 # 6. features_to_keep_indices: indices of features to keep: default is None
-sp_run = sp_engine.run(num_features=5, iter_max=150)
+sp_run = sp_engine.run(num_features=5, n_jobs=n_jobs)
 
 # get the results of the run
 sp_results = sp_run.results
@@ -96,7 +98,7 @@ scoring = 'r2'
 # you should also scale y to be between 0 and 1 for the algorithm to work properly!
 y = preprocessing.MinMaxScaler().fit_transform(y.reshape(-1, 1)).flatten()
 sp_engine = SpFtSel(x, y, wrapper, scoring)
-sp_run = sp_engine.run(num_features=5, stratified_cv=False)
+sp_run = sp_engine.run(num_features=5, stratified_cv=False, n_jobs=n_jobs)
 
 sp_results = sp_run.results
 
