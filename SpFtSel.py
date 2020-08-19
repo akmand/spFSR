@@ -8,7 +8,6 @@ import logging
 import numpy as np
 from sklearn.model_selection import KFold, RepeatedKFold, StratifiedKFold, RepeatedStratifiedKFold, cross_val_score
 from sklearn.utils import shuffle
-from joblib import parallel_backend
 import time
 
 
@@ -415,9 +414,7 @@ class SpFtSel:
         kernel.init_parameters()
         kernel.print_algo_info()
         kernel.gen_cv_task()
-
-        with parallel_backend('multiprocessing'):
-            kernel.run_kernel()
+        kernel.run_kernel()
 
         self.results = kernel.parse_results()
 
