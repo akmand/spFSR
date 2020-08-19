@@ -6,7 +6,7 @@
 
 import numpy as np
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
-from sklearn.model_selection import RepeatedStratifiedKFold, cross_val_score
+from sklearn.model_selection import RepeatedKFold, RepeatedStratifiedKFold, cross_val_score
 
 from SpFtWgt import SpFtWgt
 
@@ -19,7 +19,7 @@ from prepare_dataset_for_modeling_github import prepare_dataset_for_modeling
 # ##### CLASSIFICATION EXAMPLE  #################
 #################################################
 
-x, y = prepare_dataset_for_modeling('sonar.csv')
+x, y = prepare_dataset_for_modeling('sonar.csv', is_classification=True)
 
 # specify a wrapper classifier to use
 wrapper = KNeighborsClassifier(n_neighbors=1)
@@ -125,3 +125,39 @@ SpFtWgt_results = sp_engine.run(stratified_cv=False).results
 print('Best value:', SpFtWgt_results.get('best_value'))
 print('Indices of selected features: ', SpFtWgt_results.get('features'))
 print('Weights of selected features: ', SpFtWgt_results.get('importance').round(3))
+
+#################################################
+# ######   Comparisons   ########################
+#################################################
+
+# Unweighted KNN (with no feature selection)
+np.random.seed(123)
+cv_method = RepeatedKFold(n_splits=5, n_repeats=5, random_state=123)
+unweighted_no_fs_score = cross_val_score(wrapper,
+                                         x,
+                                         y,
+                                         cv=cv_method,
+                                         scoring=scoring)
+print(f"unweighted_no_fs_score: {unweighted_no_fs_score.mean():.3f}")
+
+# Unweighted KNN with only the selected features
+np.random.seed(123)
+x_fs = x[:, SpFtWgt_results.get('features')]
+unweighted_fs_score = cross_val_score(wrapper,
+                                      x_fs,
+                                      y,
+                                      cv=cv_method,
+                                      scoring=scoring)
+print(f"unweighted_fs_score: {unweighted_fs_score.mean():.3f}")
+
+# Weighted KNN with feature selection
+# an independent run for validation
+np.random.seed(123)
+ft_weights = SpFtWgt_results.get('importance')
+x_fs_weighted = ft_weights * x_fs
+weighted_fs_score = cross_val_score(wrapper,
+                                    x_fs_weighted,
+                                    y,
+                                    cv=cv_method,
+                                    scoring=scoring)
+print(f"weighted_fs_score: {weighted_fs_score.mean():.3f}")
