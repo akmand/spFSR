@@ -12,7 +12,7 @@ from SpFtWgt import SpFtWgt
 
 # Source for prepare_dataset_for_modeling.py:
 # https://github.com/vaksakalli/datasets/blob/master/prepare_dataset_for_modeling_github.py
-from prepare_dataset_for_modeling import prepare_dataset_for_modeling_github
+from prepare_dataset_for_modeling_github import prepare_dataset_for_modeling
 
 
 #################################################
