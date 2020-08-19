@@ -51,8 +51,8 @@ np.random.seed(123)
 #    (in addition to features to keep, if any)
 #    default value is 0 and it results in automatic feature selection
 # 2. iter_max: max number of iterations
-#    for small datasets, iter_max = 150 works well (default)
-#    for large datasets, iter_max = 300 works well
+#    for small datasets, iter_max = 150 works well
+#    for large datasets, iter_max = 300 works well (default)
 #    iteration stall limit will be iter_max/3
 # 3. stratified_cv: whether CV should be stratified or not (default is True)
 #    stratified_cv MUST be set to False for regression problems
