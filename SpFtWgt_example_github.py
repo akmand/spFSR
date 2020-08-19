@@ -117,6 +117,7 @@ dataset = 'boston_housing.csv'
 n_neighbors = 1
 n_jobs = -1
 ####
+# you should scale y to be between 0 and 1 for the algorithm to work properly!
 x, y = prepare_dataset_for_modeling(dataset, is_classification=False)
 print("dataset = " + dataset + ", shape of x = ", x.shape)
 
