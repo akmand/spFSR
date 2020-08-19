@@ -19,10 +19,16 @@ from prepare_dataset_for_modeling_github import prepare_dataset_for_modeling
 # ##### CLASSIFICATION EXAMPLE  #################
 #################################################
 
+dataset = 'sonar.csv'
+n_neighbors = 1
+####
+n_jobs = -2
+####
 x, y = prepare_dataset_for_modeling('sonar.csv', is_classification=True)
+print("dataset = " + dataset + ", shape of x = ", x.shape)
 
 # specify a wrapper classifier to use
-wrapper = KNeighborsClassifier(n_neighbors=1)
+wrapper = KNeighborsClassifier(n_neighbors=n_neighbors)
 
 # specify a metric to maximize
 # (by default, sklearn metrics are defined as "higher is better")
@@ -54,7 +60,7 @@ np.random.seed(123)
 # 5. print_freq: print frequency for the output (default is 5)
 # 6. features_to_keep_indices: indices of features to keep: default is None
 # 7. fs_threshold: feature selection threshold (default is 0.5)
-SpFtWgt_results = sp_engine.run().results
+SpFtWgt_results = sp_engine.run(n_jobs=n_jobs).results
 
 # list of available keys in the engine output
 print('Available keys:\n', SpFtWgt_results.keys())
@@ -107,9 +113,14 @@ print(f"weighted_fs_score: {weighted_fs_score.mean():.2f}")
 # ##### REGRESSION EXAMPLE  #####################
 #################################################
 
-x, y = prepare_dataset_for_modeling('boston_housing.csv', is_classification=False)
+dataset = 'boston_housing.csv'
+n_neighbors = 1
+n_jobs = -1
+####
+x, y = prepare_dataset_for_modeling(dataset, is_classification=False)
+print("dataset = " + dataset + ", shape of x = ", x.shape)
 
-wrapper = KNeighborsRegressor(n_neighbors=1)
+wrapper = KNeighborsRegressor(n_neighbors=n_neighbors)
 
 scoring = 'r2'
 
@@ -120,7 +131,7 @@ np.random.seed(123)
 
 # for regression problems, you must set stratified_cv to False
 # because the default value of True will not work
-SpFtWgt_results = sp_engine.run(stratified_cv=False).results
+SpFtWgt_results = sp_engine.run(stratified_cv=False, n_jobs=n_jobs).results
 
 print('Best value:', SpFtWgt_results.get('best_value'))
 print('Indices of selected features: ', SpFtWgt_results.get('features'))
