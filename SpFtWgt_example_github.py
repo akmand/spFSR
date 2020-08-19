@@ -1,31 +1,28 @@
 
-# SpFtSel: Feature Selection and Ranking via SPSA-BB
+# SpFtWgt: Feature Weighting and Feature Selection via SPSA
 # Required Python version >= 3.6
-# V. Aksakalli & Z. D. Yenice
+# G. Yeo & V. Aksakalli
 # GPL-3.0, 2020
-# Please refer to below for more information:
-# https://arxiv.org/abs/1804.05589
-
 
 import numpy as np
-from sklearn.datasets import load_breast_cancer, load_boston
-from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
+from sklearn.model_selection import RepeatedStratifiedKFold, cross_val_score
 
-from SpFtSel import SpFtSel
+from SpFtWgt import SpFtWgt
+
+# Source for prepare_dataset_for_modeling.py:
+# https://github.com/vaksakalli/datasets/blob/master/prepare_dataset_for_modeling_github.py
+from prepare_dataset_for_modeling import prepare_dataset_for_modeling_github
 
 
 #################################################
 # ##### CLASSIFICATION EXAMPLE  #################
 #################################################
 
-# make sure the results are repeatable
-np.random.seed(8)
+x, y = prepare_dataset_for_modeling('sonar.csv')
 
-df = load_breast_cancer()
-x, y = df.data, df.target
-
-# specify a _wrapper to use
-wrapper = DecisionTreeClassifier()
+# specify a wrapper classifier to use
+wrapper = KNeighborsClassifier(n_neighbors=1)
 
 # specify a metric to maximize
 # (by default, sklearn metrics are defined as "higher is better")
@@ -37,7 +34,10 @@ wrapper = DecisionTreeClassifier()
 scoring = 'accuracy'
 
 # set the engine parameters
-sp_engine = SpFtSel(x, y, wrapper, scoring)
+sp_engine = SpFtWgt(x=x, y=y, wrapper=wrapper, scoring=scoring)
+
+# make sure the results are repeatable
+np.random.seed(123)
 
 # run the engine
 # available engine parameters:
@@ -53,54 +53,75 @@ sp_engine = SpFtSel(x, y, wrapper, scoring)
 # 4. n_jobs: number of cores to be used in cross-validation (default is 1)
 # 5. print_freq: print frequency for the output (default is 5)
 # 6. features_to_keep_indices: indices of features to keep: default is None
-sp_run = sp_engine.run(num_features=5, iter_max=150)
-
-# get the results of the run
-sp_results = sp_run.results
+# 7. fs_threshold: feature selection threshold (default is 0.5)
+SpFtWgt_results = sp_engine.run().results
 
 # list of available keys in the engine output
-print('Available keys:\n', sp_results.keys())
-
+print('Available keys:\n', SpFtWgt_results.keys())
 # performance value of the best feature set
-print('Best value:', sp_results.get('best_value'))
-
+print('Best value:', SpFtWgt_results.get('best_value'))
 # indices of selected features
-print('Indices of selected features: ', sp_results.get('features'))
-
+print('Indices of selected features: ', SpFtWgt_results.get('features'))
 # importance of selected features
-print('Importance of selected features: ', sp_results.get('importance').round(3))
+print('Weights of selected features: ', SpFtWgt_results.get('importance').round(3))
+# # gain sequence used during optimization
+# print('BB Gains:', SpFtWgt_results.get('iter_results').get('gains'))
 
-# number of iterations for the optimal set
-print('Total iterations for the optimal feature set:', sp_results.get('total_iter_for_opt'))
+#################################################
+# ######   Comparisons   ########################
+#################################################
 
+# Unweighted KNN (with no feature selection)
+np.random.seed(123)
+cv_method = RepeatedStratifiedKFold(n_splits=5, n_repeats=5, random_state=123)
+unweighted_no_fs_score = cross_val_score(wrapper,
+                                         x,
+                                         y,
+                                         cv=cv_method,
+                                         scoring='accuracy')
+print(f"unweighted_no_fs_score: {unweighted_no_fs_score.mean():.2f}")
+
+# Unweighted KNN with only the selected features
+np.random.seed(123)
+x_fs = x[:, SpFtWgt_results.get('features')]
+unweighted_fs_score = cross_val_score(wrapper,
+                                      x_fs,
+                                      y,
+                                      cv=cv_method,
+                                      scoring='accuracy')
+print(f"unweighted_fs_score: {unweighted_fs_score.mean():.2f}")
+
+# Weighted KNN with feature selection
+# an independent run for validation
+np.random.seed(123)
+ft_weights = SpFtWgt_results.get('importance')
+x_fs_weighted = ft_weights * x_fs
+weighted_fs_score = cross_val_score(wrapper,
+                                    x_fs_weighted,
+                                    y,
+                                    cv=cv_method,
+                                    scoring='accuracy')
+print(f"weighted_fs_score: {weighted_fs_score.mean():.2f}")
 
 #################################################
 # ##### REGRESSION EXAMPLE  #####################
 #################################################
 
-# make sure the results are repeatable
-np.random.seed(8)
+x, y = prepare_dataset_for_modeling('boston_housing.csv', is_classification=False)
 
-df = load_boston()
-
-x, y = df.data, df.target
-
-wrapper = DecisionTreeRegressor()
+wrapper = KNeighborsRegressor(n_neighbors=1)
 
 scoring = 'r2'
 
-sp_engine = SpFtSel(x, y, wrapper, scoring)
+sp_engine = SpFtWgt(x=x, y=y, wrapper=wrapper, scoring=scoring)
 
-# for regression problems:
-# you MUST set stratified_cv to False
-# as the default value of True will not work
-# you should also scale y to be between 0 and 1 for the algorithm to work properly!
-sp_run = sp_engine.run(num_features=5, stratified_cv=False)
+# make sure the results are repeatable
+np.random.seed(123)
 
-sp_results = sp_run.results
+# for regression problems, you must set stratified_cv to False
+# because the default value of True will not work
+SpFtWgt_results = sp_engine.run(stratified_cv=False).results
 
-print('Best value:', sp_results.get('best_value'))
-print('Indices of selected features: ', sp_results.get('features'))
-print('Importance of selected features: ', sp_results.get('importance').round(3))
-print('Total iterations for the optimal feature set:', sp_results.get('total_iter_for_opt'))
-
+print('Best value:', SpFtWgt_results.get('best_value'))
+print('Indices of selected features: ', SpFtWgt_results.get('features'))
+print('Weights of selected features: ', SpFtWgt_results.get('importance').round(3))
