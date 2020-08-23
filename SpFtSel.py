@@ -369,13 +369,13 @@ class SpFtSelKernel:
 
             if same_feature_counter >= self._stall_limit:
                 # search stalled, start from scratch!
-                SpFtSelLog.logger.info(f"same feature counter limit reached, initializing search...")
+                SpFtSelLog.logger.debug(f"same feature counter limit reached, initializing search...")
                 self._stall_counter = 1  # reset the stall counter
                 self.init_parameters()
 
             if self._stall_counter >= self._stall_limit:
                 # search stalled, start from scratch!
-                SpFtSelLog.logger.info(f"iteration stall limit reached, initializing search...")
+                SpFtSelLog.logger.debug(f"iteration stall limit reached, initializing search...")
                 self._stall_counter = 1  # reset the stall counter to give this solution enough time
                 self.init_parameters()  # set _curr_imp and _g_hat to vectors of zeros
 
@@ -383,7 +383,7 @@ class SpFtSelKernel:
         SpFtSelLog.logger.info(f"spFtSel completed in {self._run_time} minutes.")
         SpFtSelLog.logger.info(
             f"Best value = {np.round(self._best_value, self._decimals)} with " +
-            f"{len(self._best_features )} features and {len(self._iter_results.get('values')) - 1} total iterations. ")
+            f"{len(self._best_features )} features and {len(self._iter_results.get('values')) - 1} total iterations.\n")
 
     def parse_results(self):
         selected_data = self._input_x[:, self._best_features]
