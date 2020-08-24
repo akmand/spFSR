@@ -386,7 +386,7 @@ class SpFtSelKernel:
             if same_feature_counter >= self._stall_limit:
                 # search stalled, start from scratch!
                 self._logger.logger.info(f"===> iter_no: {curr_iter_no}, "
-                                         f"same feature counter limit reached, initializing search...")
+                                         f"same feature stall limit reached, initializing search...")
                 self._stall_counter = 1  # reset the stall counter
                 self.init_parameters()
 
