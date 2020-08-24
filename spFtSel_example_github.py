@@ -37,10 +37,14 @@ wrapper = DecisionTreeClassifier()
 # https://scikit-learn.org/stable/modules/model_evaluation.html
 scoring = 'accuracy'
 ###
-n_jobs = -2
+n_jobs = 1
 ###
+
+# detailed search info can be printed by setting the following to True (default is False)
+is_debug = False
+
 # set the engine parameters
-sp_engine = SpFtSel(x, y, wrapper, scoring)
+sp_engine = SpFtSel(x=x, y=y, wrapper=wrapper, scoring=scoring, is_debug=is_debug)
 
 # run the engine
 # available engine parameters:
@@ -48,14 +52,16 @@ sp_engine = SpFtSel(x, y, wrapper, scoring)
 #    (in addition to features to keep, if any)
 #    default value is 0 and it results in automatic feature selection
 # 2. iter_max: max number of iterations
-#    for small datasets, iter_max = 150 works well (default)
+#    for small datasets, iter_max = 200 works well (default)
 #    for large datasets, iter_max = 300 works well
-#    iteration stall limit will be iter_max/3
-# 3. stratified_cv: whether CV should be stratified or not (default is True)
+# 3. stall_limit: should be around iter_max/3 (default is 75)
+# 4. n_samples_max: max. no. of randomly selected observations to be used during search (default is 5000)
+#    it can be set to None to use all observations
+# 5. stratified_cv: whether CV should be stratified or not (default is True)
 #    stratified_cv MUST be set to False for regression problems
-# 4. n_jobs: number of cores to be used in cross-validation (default is 1)
-# 5. print_freq: print frequency for the output (default is 5)
-# 6. features_to_keep_indices: indices of features to keep: default is None
+# 6. n_jobs: number of cores to be used in cross-validation (default is 1)
+# 7. print_freq: print frequency for the output (default is 10)
+# 8. features_to_keep_indices: indices of features to keep: default is None
 sp_run = sp_engine.run(num_features=5, n_jobs=n_jobs)
 
 # get the results of the run
