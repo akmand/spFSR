@@ -53,25 +53,27 @@ class SpFtSelKernel:
         self._change_min = 0.0
         self._change_max = 0.2
         #####
-        self._stall_tolerance = 1e-5
-        self._bb_bottom_threshold = 1e-5
+        self._stall_tolerance = 1e-8
+        self._bb_bottom_threshold = 1e-8
         self._decimals = 5  # for display rounding, must be > 3
         #####
         self._gain_type = params['gain_type']
-        self._features_to_keep_indices = params['features_to_keep_indices']
+        self._num_features_selected = params['num_features']
         self._iter_max = params['iter_max']
         self._stall_limit = params['stall_limit']
         self._n_samples_max = params['n_samples_max']
         self._stratified_cv = params['stratified_cv']
+        self._logger = SpFtSelLog(params['is_debug'])
+        self._n_jobs = params['n_jobs']
+        self._print_freq = params.get('print_freq')
+        self._starting_imps = params.get('starting_imps')
+        self._features_to_keep_indices = params['features_to_keep_indices']
+        ####
+        self._num_cv_folds = params['cv_folds']
+        self._num_cv_reps_eval = params['cv_reps_eval']
+        self._num_cv_reps_grad = params['cv_reps_grad']
         self._num_grad_avg = params['num_grad_avg']
         self._num_gain_smoothing = params['num_gain_smoothing']
-        self._num_cv_reps_grad = params['cv_reps_grad']
-        self._num_cv_reps_eval = params['cv_reps_eval']
-        self._num_cv_folds = params['cv_folds']
-        self._n_jobs = params['n_jobs']
-        self._num_features_selected = params['num_features']
-        self._starting_imps = params.get('starting_imps')
-        self._print_freq = params.get('print_freq')
         #####
         self._mon_gain_A = params.get('mon_gain_A') if params.get('mon_gain_A') else 100
         self._mon_gain_a = params.get('mon_gain_a') if params.get('mon_gain_a') else 0.75
@@ -79,7 +81,6 @@ class SpFtSelKernel:
         #####
         self._input_x = None
         self._output_y = None
-        self._logger = None
         self._n_observations = None  # in the dataset
         self._n_samples = None  # after any sampling
         self._wrapper = None
@@ -104,12 +105,11 @@ class SpFtSelKernel:
         self._raw_gain_seq = list()
         self._iter_results = self.prepare_results_dict()
 
-    def set_inputs(self, x, y, wrapper, scoring, is_debug):
+    def set_inputs(self, x, y, wrapper, scoring):
         self._input_x = x
         self._output_y = y
         self._wrapper = wrapper
         self._scoring = scoring
-        self._logger = SpFtSelLog(is_debug)
 
     def shuffle_and_sample_data(self):
         if any([self._input_x is None, self._output_y is None]):
@@ -274,14 +274,14 @@ class SpFtSelKernel:
                     self._logger.logger.debug(f'=> iter_no: {curr_iter_no}, '
                                               f'y_plus == y_minus at gradient iteration {grad_iter}')
 
-            if g_matrix.shape[0] < self._num_grad_avg - 1:
+            if g_matrix.shape[0] < self._num_grad_avg:
                 self._logger.logger.debug(f'=> iter_no: {curr_iter_no}, '
-                                          f'no. of gradients used in averaging: {g_matrix.shape[0]}')
+                                          f'zero gradient(s) encountered: only {g_matrix.shape[0]} gradients averaged.')
 
             ghat_prev = self._ghat.copy()
 
             if g_matrix.shape[0] == 0:
-                # no good gradient found, go in the previous direction
+                # no good gradient found, search in the previous direction
                 self._ghat = ghat_prev
             else:
                 g_matrix_avg = g_matrix.mean(axis=0)
@@ -325,11 +325,11 @@ class SpFtSelKernel:
 
             # make sure change is not too much
             curr_change_raw = self._gain * self._ghat
-            self._logger.logger.debug(f"=> iter_no: {curr_iter_no}, "
-                                      f"curr_change_raw = {np.round(curr_change_raw, self._decimals)}")
+            # self._logger.logger.debug(f"=> iter_no: {curr_iter_no}, "
+            #                           f"curr_change_raw = {np.round(curr_change_raw, self._decimals)}")
             curr_change_clipped = self.clip_change(curr_change_raw)
-            self._logger.logger.debug(f"=> iter_no: {curr_iter_no}, "
-                                      f"curr_change_clipped = {np.round(curr_change_clipped, self._decimals)}")
+            # self._logger.logger.debug(f"=> iter_no: {curr_iter_no}, "
+            #                           f"curr_change_clipped = {np.round(curr_change_clipped, self._decimals)}")
 
             # we use "+" below so that SPSA maximizes
             self._curr_imp = self._curr_imp + curr_change_clipped
@@ -385,7 +385,7 @@ class SpFtSelKernel:
 
             if same_feature_counter >= self._stall_limit:
                 # search stalled, start from scratch!
-                self._logger.logger.info(f"===> iter_no: {curr_iter_no},"
+                self._logger.logger.info(f"===> iter_no: {curr_iter_no}, "
                                          f"same feature counter limit reached, initializing search...")
                 self._stall_counter = 1  # reset the stall counter
                 self.init_parameters()
@@ -424,12 +424,11 @@ class SpFtSelKernel:
 
 
 class SpFtSel:
-    def __init__(self, x, y, wrapper, scoring, is_debug=False):
+    def __init__(self, x, y, wrapper, scoring):
         self._x = x
         self._y = y
         self._wrapper = wrapper
         self._scoring = scoring
-        self._is_debug = is_debug
         self.results = None
 
     def run(self,
@@ -438,10 +437,12 @@ class SpFtSel:
             stall_limit=100,
             n_samples_max=5000,  # if more rows than this in input data, a subset of data will be used - can be None
             stratified_cv=True,  # *** MUST *** be set to False for regression problems
+            is_debug=False,
             n_jobs=1,
             print_freq=10,
             starting_imps=None,
             features_to_keep_indices=None):
+
         sp_params = dict()
 
         # define a dictionary to initialize the SpFtSel kernel
@@ -453,14 +454,16 @@ class SpFtSel:
         sp_params['stall_limit'] = stall_limit
         sp_params['n_samples_max'] = n_samples_max
         sp_params['stratified_cv'] = stratified_cv
+        sp_params['is_debug'] = is_debug
         sp_params['n_jobs'] = n_jobs
         sp_params['print_freq'] = print_freq
         sp_params['starting_imps'] = starting_imps
         sp_params['features_to_keep_indices'] = features_to_keep_indices
         ######################################
         # change below if needed:
+        # for a better gradient estimation, try increasing num_grad_avg to 6, 8, or 10 (makes the search slower)
         sp_params['cv_folds'] = 5
-        sp_params['cv_reps_eval'] = 2
+        sp_params['cv_reps_eval'] = 3
         sp_params['cv_reps_grad'] = 1
         sp_params['num_grad_avg'] = 4
         sp_params['num_gain_smoothing'] = 1
@@ -471,8 +474,7 @@ class SpFtSel:
         kernel.set_inputs(x=self._x,
                           y=self._y,
                           wrapper=self._wrapper,
-                          scoring=self._scoring,
-                          is_debug=self._is_debug)
+                          scoring=self._scoring)
 
         kernel.shuffle_and_sample_data()
         kernel.init_parameters()
