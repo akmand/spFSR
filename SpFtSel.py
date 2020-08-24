@@ -12,29 +12,31 @@ import time
 
 
 class SpFtSelLog:
-    # if is_debug is set to True, DEBUG information will also be printed
-    # so, change the following line as needed:
-    # is_debug = True
-    is_debug = False
-    # create logger and set level
-    logger = logging.getLogger('spFtSel')
-    logger.setLevel(logging.INFO)
-    # create console handler and set level
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.INFO)
-    ###
-    if is_debug:
-        logger.setLevel(logging.DEBUG)
-        ch.setLevel(logging.DEBUG)
-    ###
-    # create formatter
-    formatter = logging.Formatter(fmt='{name}-{levelname}: {message}', style='{')
-    # add formatter to console handler
-    ch.setFormatter(formatter)
-    # add console handler to logger
-    logger.addHandler(ch)
-
-#######################################
+    def __init__(self, is_debug):
+        # if is_debug is set to True, debug information will also be printed
+        self.is_debug = is_debug
+        # create logger
+        self.logger = logging.getLogger('spFtSel')
+        # create console handler
+        self.ch = logging.StreamHandler()
+        # clear the logger to avoid duplicate logs
+        if self.logger.hasHandlers():
+            self.logger.handlers.clear()
+        ####
+        # set level
+        if self.is_debug:
+            self.logger.setLevel(logging.DEBUG)
+            self.ch.setLevel(logging.DEBUG)
+        else:
+            self.logger.setLevel(logging.INFO)
+            self.ch.setLevel(logging.INFO)
+        ####
+        # create formatter
+        self.formatter = logging.Formatter(fmt='{name}-{levelname}: {message}', style='{')
+        # add formatter to console handler
+        self.ch.setFormatter(self.formatter)
+        # add console handler to logger
+        self.logger.addHandler(self.ch)
 
 
 class SpFtSelKernel:
@@ -77,6 +79,7 @@ class SpFtSelKernel:
         #####
         self._input_x = None
         self._output_y = None
+        self._logger = None
         self._n_observations = None  # in the dataset
         self._n_samples = None  # after any sampling
         self._wrapper = None
@@ -101,15 +104,16 @@ class SpFtSelKernel:
         self._raw_gain_seq = list()
         self._iter_results = self.prepare_results_dict()
 
-    def set_inputs(self, x, y, wrapper, scoring):
+    def set_inputs(self, x, y, wrapper, scoring, is_debug):
         self._input_x = x
         self._output_y = y
         self._wrapper = wrapper
         self._scoring = scoring
+        self._logger = SpFtSelLog(is_debug)
 
-    def shuffle_data(self):
+    def shuffle_and_sample_data(self):
         if any([self._input_x is None, self._output_y is None]):
-            raise ValueError('There is no data inside shuffle_data()')
+            raise ValueError('There is no data inside shuffle_and_sample_data()')
         else:
             self._n_observations = self._input_x.shape[0]  # no. of observations in the dataset
             self._n_samples = self._input_x.shape[0]  # no. of observations after (any) sampling
@@ -140,12 +144,12 @@ class SpFtSelKernel:
         self._curr_imp_prev = self._curr_imp
 
     def print_algo_info(self):
-        SpFtSelLog.logger.info(f'Wrapper: {self._wrapper}')
-        SpFtSelLog.logger.info(f'Scoring metric: {self._scoring}')
-        SpFtSelLog.logger.info(f"Number of observations in the dataset: {self._n_observations}")
-        SpFtSelLog.logger.info(f"Number of observations used: {self._n_samples}")
-        SpFtSelLog.logger.info(f"Number of features available: {self._p}")
-        SpFtSelLog.logger.info(f"Number of features to select: {self._num_features_selected}")
+        self._logger.logger.info(f'Wrapper: {self._wrapper}')
+        self._logger.logger.info(f'Scoring metric: {self._scoring}')
+        self._logger.logger.info(f"Number of observations in the dataset: {self._n_observations}")
+        self._logger.logger.info(f"Number of observations used: {self._n_samples}")
+        self._logger.logger.info(f"Number of features available: {self._p}")
+        self._logger.logger.info(f"Number of features to select: {self._num_features_selected}")
 
     def get_selected_features(self, imp):
         """
@@ -187,12 +191,14 @@ class SpFtSelKernel:
 
         else:
             if self._num_cv_reps_grad > 1:
-                self._cv_grad_avg = RepeatedKFold(n_splits=self._num_cv_folds, n_repeats=self._num_cv_reps_grad)
+                self._cv_grad_avg = RepeatedKFold(n_splits=self._num_cv_folds,
+                                                  n_repeats=self._num_cv_reps_grad)
             else:
                 self._cv_grad_avg = KFold(n_splits=self._num_cv_folds)
 
             if self._num_cv_reps_eval > 1:
-                self._cv_feat_eval = RepeatedKFold(n_splits=self._num_cv_folds, n_repeats=self._num_cv_reps_eval)
+                self._cv_feat_eval = RepeatedKFold(n_splits=self._num_cv_folds,
+                                                   n_repeats=self._num_cv_reps_eval)
             else:
                 self._cv_feat_eval = KFold(n_splits=self._num_cv_folds)
 
@@ -246,16 +252,17 @@ class SpFtSelKernel:
 
                     # require both plus and minus to be different from current solution vector:
                     if (not np.array_equal(curr_imp_sel_ft_sorted, imp_plus_sel_ft_sorted)) and \
-                       (not np.array_equal(curr_imp_sel_ft_sorted, imp_minus_sel_ft_sorted)):
+                            (not np.array_equal(curr_imp_sel_ft_sorted, imp_minus_sel_ft_sorted)):
                         # stop searching
                         break
                     else:
                         bad_perturb_counter += 1
 
                 if bad_perturb_counter > 0:
-                    SpFtSelLog.logger.debug(f'bad_perturb_counter = {bad_perturb_counter} at gradient iteration {grad_iter}')
+                    self._logger.logger.debug(f'=> iter_no: {curr_iter_no}, bad_perturb_counter: '
+                                              f'{bad_perturb_counter} at gradient iteration {grad_iter}')
 
-                # at this point, imp_plus can be the same as imp_minus if bad_perturb_counter reached the stall limit
+                # at this point, imp_plus *can* be the same as imp_minus if bad_perturb_counter reached the stall limit
                 y_plus = self.eval_feature_set(self._cv_grad_avg, imp_plus)[0]
                 y_minus = self.eval_feature_set(self._cv_grad_avg, imp_minus)[0]
 
@@ -264,11 +271,16 @@ class SpFtSelKernel:
                     g_matrix = np.vstack([g_matrix, g_curr])
                 else:
                     # unfortunately there will be one less gradient in the gradient averaging
-                    SpFtSelLog.logger.debug(f'y_plus == y_minus at gradient iteration {grad_iter}')
+                    self._logger.logger.debug(f'=> iter_no: {curr_iter_no}, '
+                                              f'y_plus == y_minus at gradient iteration {grad_iter}')
+
+            if g_matrix.shape[0] < self._num_grad_avg - 1:
+                self._logger.logger.debug(f'=> iter_no: {curr_iter_no}, '
+                                          f'no. of gradients used in averaging: {g_matrix.shape[0]}')
 
             ghat_prev = self._ghat.copy()
 
-            if len(g_matrix) == 0:
+            if g_matrix.shape[0] == 0:
                 # no good gradient found, go in the previous direction
                 self._ghat = ghat_prev
             else:
@@ -304,16 +316,20 @@ class SpFtSelKernel:
             else:
                 raise ValueError('Error: unknown gain type')
 
-            # SpFtSelLog.logger.debug(f'iteration gain raw = {np.round(self._raw_gain_seq[-1], self._decimals)}')
-            SpFtSelLog.logger.debug(f'iteration gain smooth = {np.round(self._gain, self._decimals)}')
+            # self._logger.logger.debug(f'=> iter_no: {curr_iter_no}, '
+            #                           f'iteration gain raw = {np.round(self._raw_gain_seq[-1], self._decimals)}')
+            self._logger.logger.debug(f'=> iter_no: {curr_iter_no}, '
+                                      f'iteration gain smooth = {np.round(self._gain, self._decimals)}')
 
             self._curr_imp_prev = self._curr_imp.copy()
 
             # make sure change is not too much
             curr_change_raw = self._gain * self._ghat
-            # SpFtSelLog.logger.debug(f"curr_change_raw = {np.round(curr_change_raw, self._decimals)}")
+            self._logger.logger.debug(f"=> iter_no: {curr_iter_no}, "
+                                      f"curr_change_raw = {np.round(curr_change_raw, self._decimals)}")
             curr_change_clipped = self.clip_change(curr_change_raw)
-            # SpFtSelLog.logger.debug(f"curr_change_clipped = {np.round(curr_change_clipped, self._decimals)}")
+            self._logger.logger.debug(f"=> iter_no: {curr_iter_no}, "
+                                      f"curr_change_clipped = {np.round(curr_change_clipped, self._decimals)}")
 
             # we use "+" below so that SPSA maximizes
             self._curr_imp = self._curr_imp + curr_change_clipped
@@ -326,10 +342,10 @@ class SpFtSelKernel:
             # make sure we move to a new solution by going further in the same direction
             same_feature_counter = 0
             curr_imp_orig = self._curr_imp.copy()
-            same_feature_step_size = (self._gain_max - self._gain_min)/self._stall_limit
+            same_feature_step_size = (self._gain_max - self._gain_min) / self._stall_limit
             while np.array_equal(sel_ft_prev_sorted, np.sort(self._selected_features)):
                 same_feature_counter = same_feature_counter + 1
-                curr_step_size = (self._gain_min + same_feature_counter*same_feature_step_size)
+                curr_step_size = (self._gain_min + same_feature_counter * same_feature_step_size)
                 curr_change_raw = curr_step_size * self._ghat
                 curr_change_clipped = self.clip_change(curr_change_raw)
                 self._curr_imp = curr_imp_orig + curr_change_clipped
@@ -339,7 +355,7 @@ class SpFtSelKernel:
 
             if same_feature_counter > 0:
                 # SpFtSelLog.logger.info(f"same_feature_counter = {same_feature_counter}")
-                SpFtSelLog.logger.debug(f"same_feature_counter = {same_feature_counter}")
+                self._logger.logger.debug(f"=> iter_no: {curr_iter_no}, same_feature_counter = {same_feature_counter}")
 
             fs_perf_output = self.eval_feature_set(self._cv_feat_eval, self._curr_imp)
 
@@ -361,29 +377,31 @@ class SpFtSelKernel:
                 self._stall_counter += 1
 
             if curr_iter_no % self._print_freq == 0:
-                SpFtSelLog.logger.info(f"iter_no: {curr_iter_no}, "
-                                       f"num_ft: {len(self._selected_features)}, "
-                                       f"value: {self._iter_results['values'][curr_iter_no]}, "
-                                       f"st_dev: {self._iter_results['st_devs'][curr_iter_no]}, "
-                                       f"best: {self._best_value} @ iter_no {self._best_iter}")
+                self._logger.logger.info(f"iter_no: {curr_iter_no}, "
+                                         f"num_ft: {len(self._selected_features)}, "
+                                         f"value: {self._iter_results['values'][curr_iter_no]}, "
+                                         f"st_dev: {self._iter_results['st_devs'][curr_iter_no]}, "
+                                         f"best: {self._best_value} @ iter_no {self._best_iter}")
 
             if same_feature_counter >= self._stall_limit:
                 # search stalled, start from scratch!
-                SpFtSelLog.logger.debug(f"same feature counter limit reached, initializing search...")
+                self._logger.logger.info(f"===> iter_no: {curr_iter_no},"
+                                         f"same feature counter limit reached, initializing search...")
                 self._stall_counter = 1  # reset the stall counter
                 self.init_parameters()
 
             if self._stall_counter >= self._stall_limit:
                 # search stalled, start from scratch!
-                SpFtSelLog.logger.debug(f"iteration stall limit reached, initializing search...")
+                self._logger.logger.info(f"===> iter_no: {curr_iter_no}, "
+                                         f"iteration stall limit reached, initializing search...")
                 self._stall_counter = 1  # reset the stall counter to give this solution enough time
                 self.init_parameters()  # set _curr_imp and _g_hat to vectors of zeros
 
         self._run_time = round((time.time() - start_time) / 60, 2)  # in minutes
-        SpFtSelLog.logger.info(f"spFtSel completed in {self._run_time} minutes.")
-        SpFtSelLog.logger.info(
+        self._logger.logger.info(f"spFtSel completed in {self._run_time} minutes.")
+        self._logger.logger.info(
             f"Best value = {np.round(self._best_value, self._decimals)} with " +
-            f"{len(self._best_features )} features and {len(self._iter_results.get('values')) - 1} total iterations.\n")
+            f"{len(self._best_features)} features and {len(self._iter_results.get('values')) - 1} total iterations.\n")
 
     def parse_results(self):
         selected_data = self._input_x[:, self._best_features]
@@ -406,24 +424,24 @@ class SpFtSelKernel:
 
 
 class SpFtSel:
-    def __init__(self, x, y, wrapper, scoring='accuracy'):
+    def __init__(self, x, y, wrapper, scoring, is_debug=False):
         self._x = x
         self._y = y
         self._wrapper = wrapper
         self._scoring = scoring
+        self._is_debug = is_debug
         self.results = None
 
     def run(self,
             num_features=0,
-            iter_max=200,  # set to 200 for small datasets, 300 or more for large datasets
-            stall_limit=75,  # should be about iter_max/3
+            iter_max=300,
+            stall_limit=100,
             n_samples_max=5000,  # if more rows than this in input data, a subset of data will be used - can be None
             stratified_cv=True,  # *** MUST *** be set to False for regression problems
             n_jobs=1,
             print_freq=10,
             starting_imps=None,
             features_to_keep_indices=None):
-
         sp_params = dict()
 
         # define a dictionary to initialize the SpFtSel kernel
@@ -453,9 +471,10 @@ class SpFtSel:
         kernel.set_inputs(x=self._x,
                           y=self._y,
                           wrapper=self._wrapper,
-                          scoring=self._scoring)
+                          scoring=self._scoring,
+                          is_debug=self._is_debug)
 
-        kernel.shuffle_data()
+        kernel.shuffle_and_sample_data()
         kernel.init_parameters()
         kernel.print_algo_info()
         kernel.gen_cv_task()
