@@ -462,11 +462,11 @@ class SpFtSel:
         ######################################
         # change below if needed:
         # for a better gradient estimation, try increasing num_grad_avg to 6, 8, or 10 (makes the search slower)
-        # good values: 5-4-3-2-1
+        # good values: 5-4-3-1-1
         sp_params['cv_folds'] = 5
         sp_params['num_grad_avg'] = 4
         sp_params['cv_reps_eval'] = 3
-        sp_params['cv_reps_grad'] = 2
+        sp_params['cv_reps_grad'] = 1
         sp_params['num_gain_smoothing'] = 1
         ######################################
 
