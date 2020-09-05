@@ -434,7 +434,7 @@ class SpFtSel:
     def run(self,
             num_features=0,
             iter_max=300,
-            stall_limit=100,
+            stall_limit=100,  # should be about 1/3 of iter_max
             n_samples_max=5000,  # if more rows than this in input data, a subset of data will be used - can be None
             stratified_cv=True,  # *** MUST *** be set to False for regression problems
             is_debug=False,
@@ -462,10 +462,11 @@ class SpFtSel:
         ######################################
         # change below if needed:
         # for a better gradient estimation, try increasing num_grad_avg to 6, 8, or 10 (makes the search slower)
+        # good values: 5-4-3-2-1
         sp_params['cv_folds'] = 5
-        sp_params['cv_reps_eval'] = 3
-        sp_params['cv_reps_grad'] = 1
         sp_params['num_grad_avg'] = 4
+        sp_params['cv_reps_eval'] = 3
+        sp_params['cv_reps_grad'] = 2
         sp_params['num_gain_smoothing'] = 1
         ######################################
 
