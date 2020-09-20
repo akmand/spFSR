@@ -1,5 +1,5 @@
 # spFtSel: Feature Selection and Ranking via SPSA
-# V. Aksakalli & Z. D. Yenice
+# V. Aksakalli & Z. D. Yenice & A. Yeo
 # GPL-3.0, 2020
 # Please refer to below for more information:
 # https://arxiv.org/abs/1804.05589
@@ -53,17 +53,22 @@ class SpFtSelKernel:
         self._change_min = 0.0
         self._change_max = 0.2
         #####
-        self._stall_tolerance = 1e-8
         self._bb_bottom_threshold = 1e-8
-        self._decimals = 5  # for display rounding, must be > 3
+        #####
+        self._mon_gain_A = 100  # SPSA-MONOTONE values from the 2016 PRL paper
+        self._mon_gain_a = 0.75
+        self._mon_gain_alpha = 0.6
         #####
         self._gain_type = params['gain_type']
         self._num_features_selected = params['num_features']
         self._iter_max = params['iter_max']
         self._stall_limit = params['stall_limit']
         self._n_samples_max = params['n_samples_max']
+        self._ft_weighting = params['ft_weighting']
         self._stratified_cv = params['stratified_cv']
         self._logger = SpFtSelLog(params['is_debug'])
+        self._stall_tolerance = params['stall_tolerance']
+        self._rounding = params['display_rounding']
         self._n_jobs = params['n_jobs']
         self._print_freq = params.get('print_freq')
         self._starting_imps = params.get('starting_imps')
@@ -73,11 +78,6 @@ class SpFtSelKernel:
         self._num_cv_reps_eval = params['cv_reps_eval']
         self._num_cv_reps_grad = params['cv_reps_grad']
         self._num_grad_avg = params['num_grad_avg']
-        self._num_gain_smoothing = params['num_gain_smoothing']
-        #####
-        self._mon_gain_A = params.get('mon_gain_A') if params.get('mon_gain_A') else 100
-        self._mon_gain_a = params.get('mon_gain_a') if params.get('mon_gain_a') else 0.75
-        self._mon_gain_alpha = params.get('mon_gain_alpha') if params.get('mon_gain_alpha') else 0.6
         #####
         self._input_x = None
         self._output_y = None
@@ -102,7 +102,6 @@ class SpFtSelKernel:
         self._selected_features_prev = list()
         self._best_features = list()
         self._best_imps = list()
-        self._raw_gain_seq = list()
         self._iter_results = self.prepare_results_dict()
 
     def set_inputs(self, x, y, wrapper, scoring):
@@ -116,7 +115,7 @@ class SpFtSelKernel:
             raise ValueError('There is no data inside shuffle_and_sample_data()')
         else:
             self._n_observations = self._input_x.shape[0]  # no. of observations in the dataset
-            self._n_samples = self._input_x.shape[0]  # no. of observations after (any) sampling
+            self._n_samples = self._input_x.shape[0]  # no. of observations after (any) sampling - initialization
             if self._n_samples_max and (self._n_samples_max < self._input_x.shape[0]):
                 # don't sample more rows than what's in the dataset
                 self._n_samples = self._n_samples_max
@@ -128,7 +127,6 @@ class SpFtSelKernel:
         iter_results['values'] = list()
         iter_results['st_devs'] = list()
         iter_results['gains'] = list()
-        iter_results['gains_raw'] = list()
         iter_results['importance'] = list()
         iter_results['feature_indices'] = list()
         return iter_results
@@ -137,43 +135,21 @@ class SpFtSelKernel:
         self._p = self._input_x.shape[1]
         if self._starting_imps:
             self._curr_imp = self._starting_imps
-            # SpFtSelLog.logger.info(f'Starting importance range: ({self._curr_imp.min()}, {self._curr_imp.max()})')
+            self._logger.logger.info(f'Starting importance range: ({self._curr_imp.min()}, {self._curr_imp.max()})')
         else:
-            self._curr_imp = np.repeat(0.0, self._p)
+            self._curr_imp = np.repeat(0.0, self._p)  # initialize starting importance to (0,...,0)
         self._ghat = np.repeat(0.0, self._p)
         self._curr_imp_prev = self._curr_imp
 
     def print_algo_info(self):
         self._logger.logger.info(f'Wrapper: {self._wrapper}')
+        self._logger.logger.info(f'Feature weighting: {self._ft_weighting}')
         self._logger.logger.info(f'Scoring metric: {self._scoring}')
+        self._logger.logger.info(f'Number of jobs: {self._n_jobs}')
         self._logger.logger.info(f"Number of observations in the dataset: {self._n_observations}")
         self._logger.logger.info(f"Number of observations used: {self._n_samples}")
         self._logger.logger.info(f"Number of features available: {self._p}")
         self._logger.logger.info(f"Number of features to select: {self._num_features_selected}")
-
-    def get_selected_features(self, imp):
-        """
-        given the importance array, determine which features to select (as indices)
-        :param imp: importance array
-        :return: indices of selected features
-        """
-        selected_features = imp.copy()  # init_parameters
-        if self._features_to_keep_indices is not None:
-            selected_features[self._features_to_keep_indices] = np.max(imp)  # keep these by setting their imp to max
-
-        if self._num_features_selected == 0:  # automated feature selection
-            num_features_to_select = np.sum(selected_features >= 0.0)
-            if num_features_to_select == 0:
-                num_features_to_select = 1  # select at least one!
-        else:  # user-supplied num_features_selected
-            if self._features_to_keep_indices is None:
-                num_features_to_keep = 0
-            else:
-                num_features_to_keep = len(self._features_to_keep_indices)
-
-            num_features_to_select = np.minimum(self._p, (num_features_to_keep + self._num_features_selected))
-
-        return selected_features.argsort()[::-1][:num_features_to_select]
 
     def gen_cv_task(self):
         if self._stratified_cv:
@@ -202,18 +178,50 @@ class SpFtSelKernel:
             else:
                 self._cv_feat_eval = KFold(n_splits=self._num_cv_folds)
 
+    def get_selected_features(self, imp):
+        """
+        given the importance array, determine which features to select (as indices)
+        :param imp: importance array
+        :return: indices of selected features
+        """
+        selected_features = imp.copy()  # init_parameters
+        if self._features_to_keep_indices is not None:
+            selected_features[self._features_to_keep_indices] = np.max(imp)  # keep these by setting their imp to max
+
+        if self._num_features_selected == 0:  # automated feature selection
+            num_features_to_select = np.sum(selected_features >= 0.0)
+            if num_features_to_select == 0:
+                num_features_to_select = 1  # select at least one!
+        else:  # user-supplied num_features_selected
+            if self._features_to_keep_indices is None:
+                num_features_to_keep = 0
+            else:
+                num_features_to_keep = len(self._features_to_keep_indices)
+
+            num_features_to_select = np.minimum(self._p, (num_features_to_keep + self._num_features_selected))
+
+        return selected_features.argsort()[::-1][:num_features_to_select]
+
     def eval_feature_set(self, cv_task, curr_imp):
         selected_features = self.get_selected_features(curr_imp)
-        x_fs = self._input_x[:, selected_features]
+        if self._ft_weighting:
+            selected_ft_imp = curr_imp[selected_features]
+            num_neg_imp = len(selected_ft_imp[selected_ft_imp < 0])
+            if num_neg_imp > 0:
+                raise ValueError(f'Error in feature weighting: {num_neg_imp} negative weights encountered' +
+                                 ' - try reducing number of selected features or set it to 0 for auto.')
+            x_all = curr_imp * self._input_x  # apply feature weighting
+        else:
+            x_all = self._input_x
+        x_fs = x_all[:, selected_features]
         scores = cross_val_score(self._wrapper,
                                  x_fs,
                                  self._output_y,
                                  cv=cv_task,
                                  scoring=self._scoring,
                                  n_jobs=self._n_jobs)
-        best_value_mean = scores.mean().round(self._decimals - 2)
-        best_value_std = scores.std().round(self._decimals - 2)
-        del scores
+        best_value_mean = scores.mean().round(self._rounding)
+        best_value_std = scores.std().round(self._rounding)
         # sklearn metrics convention is that higher is always better
         # and SPSA here maximizes the obj. function
         return [best_value_mean, best_value_std]
@@ -237,6 +245,8 @@ class SpFtSelKernel:
             curr_imp_sel_ft_sorted = np.sort(self.get_selected_features(self._curr_imp))
 
             for grad_iter in range(self._num_grad_avg):
+
+                imp_plus, imp_minus = None, None
 
                 # keep random perturbing until plus/ minus perturbation vectors are different from the current vector
                 bad_perturb_counter = 0
@@ -281,11 +291,14 @@ class SpFtSelKernel:
             ghat_prev = self._ghat.copy()
 
             if g_matrix.shape[0] == 0:
-                # no good gradient found, search in the previous direction
+                self._logger.logger.debug(f'=> iter_no: {curr_iter_no}, '
+                                          f'no proper gradient found, searching in the previous direction.')
                 self._ghat = ghat_prev
             else:
                 g_matrix_avg = g_matrix.mean(axis=0)
                 if np.count_nonzero(g_matrix_avg) == 0:
+                    self._logger.logger.debug(f'=> iter_no: {curr_iter_no}, '
+                                              f'zero gradient encountered, searching in the previous direction.')
                     self._ghat = ghat_prev
                 else:
                     self._ghat = g_matrix_avg
@@ -294,42 +307,31 @@ class SpFtSelKernel:
             if self._gain_type == 'bb':
                 if curr_iter_no == 0:
                     self._gain = self._gain_min
-                    self._raw_gain_seq.append(self._gain)
                 else:
                     imp_diff = self._curr_imp - self._curr_imp_prev
                     ghat_diff = self._ghat - ghat_prev
                     bb_bottom = -1 * np.sum(imp_diff * ghat_diff)  # -1 due to maximization in SPSA
-                    # make sure we don't end up with division by zero
-                    # or negative gains:
+                    # make sure we don't end up with division by zero or negative gains:
                     if bb_bottom < self._bb_bottom_threshold:
                         self._gain = self._gain_min
                     else:
                         self._gain = np.sum(imp_diff * imp_diff) / bb_bottom
-                        self._gain = np.maximum(self._gain_min, (np.minimum(self._gain_max, self._gain)))
-                    self._raw_gain_seq.append(self._gain)
-                    if curr_iter_no >= self._num_gain_smoothing:
-                        raw_gain_seq_recent = self._raw_gain_seq[-self._num_gain_smoothing:]
-                        self._gain = np.mean(raw_gain_seq_recent)
             elif self._gain_type == 'mon':
                 self._gain = self._mon_gain_a / ((curr_iter_no + self._mon_gain_A) ** self._mon_gain_alpha)
-                self._raw_gain_seq.append(self._gain)
             else:
                 raise ValueError('Error: unknown gain type')
 
-            # self._logger.logger.debug(f'=> iter_no: {curr_iter_no}, '
-            #                           f'iteration gain raw = {np.round(self._raw_gain_seq[-1], self._decimals)}')
+            # gain bounding
+            self._gain = np.maximum(self._gain_min, (np.minimum(self._gain_max, self._gain)))
+
             self._logger.logger.debug(f'=> iter_no: {curr_iter_no}, '
-                                      f'iteration gain smooth = {np.round(self._gain, self._decimals)}')
+                                      f'iteration gain = {np.round(self._gain, self._rounding)}')
 
             self._curr_imp_prev = self._curr_imp.copy()
 
             # make sure change is not too much
             curr_change_raw = self._gain * self._ghat
-            # self._logger.logger.debug(f"=> iter_no: {curr_iter_no}, "
-            #                           f"curr_change_raw = {np.round(curr_change_raw, self._decimals)}")
             curr_change_clipped = self.clip_change(curr_change_raw)
-            # self._logger.logger.debug(f"=> iter_no: {curr_iter_no}, "
-            #                           f"curr_change_clipped = {np.round(curr_change_clipped, self._decimals)}")
 
             # we use "+" below so that SPSA maximizes
             self._curr_imp = self._curr_imp + curr_change_clipped
@@ -354,16 +356,14 @@ class SpFtSelKernel:
                     break
 
             if same_feature_counter > 0:
-                # SpFtSelLog.logger.info(f"same_feature_counter = {same_feature_counter}")
                 self._logger.logger.debug(f"=> iter_no: {curr_iter_no}, same_feature_counter = {same_feature_counter}")
 
             fs_perf_output = self.eval_feature_set(self._cv_feat_eval, self._curr_imp)
 
-            self._iter_results['values'].append(np.round(fs_perf_output[0], self._decimals))
-            self._iter_results['st_devs'].append(np.round(fs_perf_output[1], self._decimals))
-            self._iter_results['gains'].append(np.round(self._gain, self._decimals))
-            self._iter_results['gains_raw'].append(np.round(self._raw_gain_seq[-1], self._decimals))
-            self._iter_results['importance'].append(np.round(self._curr_imp, self._decimals))
+            self._iter_results['values'].append(np.round(fs_perf_output[0], self._rounding))
+            self._iter_results['st_devs'].append(np.round(fs_perf_output[1], self._rounding))
+            self._iter_results['gains'].append(np.round(self._gain, self._rounding))
+            self._iter_results['importance'].append(np.round(self._curr_imp, self._rounding))
             self._iter_results['feature_indices'].append(self._selected_features)
 
             if self._iter_results['values'][curr_iter_no] >= self._best_value + self._stall_tolerance:
@@ -397,28 +397,24 @@ class SpFtSelKernel:
                 self._stall_counter = 1  # reset the stall counter to give this solution enough time
                 self.init_parameters()  # set _curr_imp and _g_hat to vectors of zeros
 
-        self._run_time = round((time.time() - start_time) / 60, 2)  # in minutes
+        self._run_time = round((time.time() - start_time) / 60, 2)  # report time in minutes
         self._logger.logger.info(f"spFtSel completed in {self._run_time} minutes.")
         self._logger.logger.info(
-            f"Best value = {np.round(self._best_value, self._decimals)} with " +
+            f"Best value = {np.round(self._best_value, self._rounding)} with " +
             f"{len(self._best_features)} features and {len(self._iter_results.get('values')) - 1} total iterations.\n")
 
     def parse_results(self):
-        selected_data = self._input_x[:, self._best_features]
-        results_values = np.array(self._iter_results.get('values'))
-        total_iter_for_opt = np.argmax(results_values)
-
         return {'wrapper': self._wrapper,
                 'scoring': self._scoring,
-                'selected_data': selected_data,
                 'iter_results': self._iter_results,
-                'features': self._best_features,
-                'importance': self._best_imps,
-                'num_features': len(self._best_features),
+                'selected_data': self._input_x[:, self._best_features],
+                'selected_features': self._best_features,
+                'selected_ft_importance': self._best_imps,
+                'selected_num_features': len(self._best_features),
                 'total_iter_overall': len(self._iter_results.get('values')),
-                'total_iter_for_opt': total_iter_for_opt,
-                'best_value': self._best_value,
-                'best_std': self._best_std,
+                'total_iter_for_opt': np.argmax(np.array(self._iter_results.get('values'))),
+                'selected_ft_score_mean': self._best_value,
+                'selected_ft_score_std': self._best_std,
                 'run_time': self._run_time,
                 }
 
@@ -436,34 +432,36 @@ class SpFtSel:
             iter_max=300,
             stall_limit=100,  # should be about 1/3 of iter_max
             n_samples_max=5000,  # if more rows than this in input data, a subset of data will be used - can be None
+            ft_weighting=False,
             stratified_cv=True,  # *** MUST *** be set to False for regression problems
+            gain_type='bb',  # either 'bb' (Barzilai & Borwein) (default) or 'mon' (monotone)
             cv_folds=5,
-            num_grad_avg=4,  # for better gradient estimation, try increasing num_grad_avg to 6 or 8
+            num_grad_avg=4,  # for better gradient estimation, try increasing num_grad_avg to 8 or 10
             cv_reps_eval=3,
             cv_reps_grad=1,
-            num_gain_smoothing=1,
+            stall_tolerance=1e-8,
+            display_rounding=3,
             is_debug=False,
             n_jobs=1,
             print_freq=10,
             starting_imps=None,
             features_to_keep_indices=None):
 
-        sp_params = dict()
-
         # define a dictionary to initialize the SpFtSel kernel
-        # two gain types are available: bb (Barzilai & Borwein) (default) or mon (monotone)
-        sp_params['gain_type'] = 'bb'
-        ###
+        sp_params = dict()
+        sp_params['gain_type'] = gain_type
         sp_params['num_features'] = num_features
         sp_params['iter_max'] = iter_max
         sp_params['stall_limit'] = stall_limit
         sp_params['n_samples_max'] = n_samples_max
+        sp_params['ft_weighting'] = ft_weighting
         sp_params['stratified_cv'] = stratified_cv
         sp_params['cv_folds'] = cv_folds
         sp_params['num_grad_avg'] = num_grad_avg
         sp_params['cv_reps_eval'] = cv_reps_eval
         sp_params['cv_reps_grad'] = cv_reps_grad
-        sp_params['num_gain_smoothing'] = num_gain_smoothing
+        sp_params['stall_tolerance'] = stall_tolerance
+        sp_params['display_rounding'] = display_rounding
         sp_params['is_debug'] = is_debug
         sp_params['n_jobs'] = n_jobs
         sp_params['print_freq'] = print_freq
