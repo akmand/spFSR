@@ -428,15 +428,15 @@ class SpFSR:
         self.results = None
 
     def run(self,
-            num_features=0,  # a value of zero results in automatic feature selection
+            num_features=0,
             iter_max=300,
-            stall_limit=100,  # should be about 1/3 of iter_max
-            n_samples_max=5000,  # if more rows than this in input data, a subset of data will be used - can be None
+            stall_limit=100,
+            n_samples_max=5000,
             ft_weighting=False,
-            stratified_cv=True,  # *** MUST *** be set to False for regression problems
-            gain_type='bb',  # either 'bb' (Barzilai & Borwein) (default) or 'mon' (monotone)
+            stratified_cv=True,
+            gain_type='bb',
             cv_folds=5,
-            num_grad_avg=4,  # for better gradient estimation, try increasing num_grad_avg to 8 or 10
+            num_grad_avg=4,
             cv_reps_eval=3,
             cv_reps_grad=1,
             stall_tolerance=1e-8,
