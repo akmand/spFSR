@@ -62,7 +62,7 @@ class SpFSRKernel:
         self._mon_gain_a = 0.75
         self._mon_gain_alpha = 0.6
         #####
-        self._hot_start_num_ft_factor = 10
+        self._hot_start_num_ft_factor = 15
         #####
         self._use_hot_start = params['use_hot_start']
         self._hot_start_range = params['hot_start_range']
@@ -168,9 +168,9 @@ class SpFSRKernel:
 
         if self._use_hot_start:
             if self._pred_type == 'c':
-                hot_start_model = RandomForestClassifier(n_estimators=100, random_state=self._random_state)
+                hot_start_model = RandomForestClassifier(n_estimators=10, random_state=self._random_state)
             else:
-                hot_start_model = RandomForestRegressor(n_estimators=100, random_state=self._random_state)
+                hot_start_model = RandomForestRegressor(n_estimators=10, random_state=self._random_state)
 
             hot_start_model.fit(self._input_x_all, self._output_y)
 
@@ -475,7 +475,7 @@ class SpFSR:
             num_features=0,
             iter_max=100,
             stall_limit=30,
-            n_samples_max=10000,
+            n_samples_max=5000,
             ft_weighting=False,
             use_hot_start=True,
             hot_start_range=0.1,
