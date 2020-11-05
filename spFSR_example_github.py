@@ -10,7 +10,6 @@
 import numpy as np
 from sklearn.datasets import load_breast_cancer, load_boston
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
-from sklearn import preprocessing
 
 from spFSR import SpFSR
 
@@ -22,57 +21,60 @@ from spFSR import SpFSR
 df = load_breast_cancer()
 x, y = df.data, df.target
 
-# specify a wrapper to use
-wrapper = DecisionTreeClassifier(random_state=1)
+# specify prediction type
+# pred_type needs to be 'c' for classification and 'r' for regression datasets
+pred_type = 'c'
 
 # specify a metric to maximize
-# (by default, sklearn metrics are defined as "higher is better")
-# you need to make sure your _scoring metric is consistent with your problem type,
-# based on whether it is a binary or multi-class classification problem
+# by default, sklearn metrics are defined as "higher is better"
+# a 'None' value for scoring will default to 'accuracy' for classification and 'r2' (r-squared) for regression datasets
+# you need to make sure your _scoring metric is consistent with your problem type
 # example: accuracy, f1, roc_auc, etc.
-# more info on the _scoring metrics can be found here:
+# more info on the scoring metrics can be found here:
 # https://scikit-learn.org/stable/modules/model_evaluation.html
 scoring = 'accuracy'
-###
+
+# specify a wrapper to use
+# a 'None' value for the wrapper will default to a random forest wrapper
+# this way spFSR will behave as a FILTER feature selection method
+wrapper = DecisionTreeClassifier(random_state=1)
 
 # set the engine parameters
-sp_engine = SpFSR(x, y, wrapper, scoring)
-
-# make sure the results are repeatable
-np.random.seed(1)
+sp_engine = SpFSR(x, y, pred_type=pred_type, scoring=scoring, wrapper=wrapper)
 
 # run the spFSR engine
 # available engine parameters (with default values in parentheses):
-# 1.  num_features (0): number of features to select (in addition to features to keep, if any)
-#     a value of 0 results in automatic feature selection
-# 2.  iter_max (300): max number of iterations - for small datasets, try: iter_max = 150
-# 3.  stall_limit (100): when to restart the search (up to iter_max) - should be around iter_max/3
-#     stall_limit will also apply to same feature counter during y-plus and y-minus calculations
+# 1.  num_features (0): number of features to select - a value of 0 results in automatic feature selection
+# 2.  iter_max (100): max number of iterations
+# 3.  stall_limit (30): when to restart the search (up to iter_max) - should be about iter_max/3
 # 4.  n_samples_max (5000): max number of randomly selected observations to be used during search
-#     can be None for all observations
+#     can be 'None' for using all available observations
 # 5.  ft_weighting (False): if features should be weighted by their importance values - this usually helps with kNN's.
-# 6.  stratified_cv (True): whether cross-validation (CV) should be stratified or not
-#     stratified_cv *** MUST *** be set to False for regression problems
-# 7.  gain_type ('bb'): either 'bb' (Barzilai & Borwein) gains or 'mon' (monotone) gains as the step size during search
-# 8.  cv_folds (5): number of folds to use during (perhaps repeated) CV both for evaluation and gradient evaluation
-# 9.  num_grad_avg (4): number of gradient estimates to be averaged for determining search direction
-#     for better gradient estimation, try increasing this to 8 or 10 - though this will slow down the search
-# 10. cv_reps_eval (3): number of CV repetitions for evaluating a candidate feature set
-# 11. cv_reps_grad (1): number of CV repetitions for evaluating y-plus and y-minus solutions during gradient estimation
-# 12. stall_tolerance (1e-8): tolerance in objective function change for stalling
-# 13. display_rounding (3): number of digits to display during algorithm execution
-# 14. is_debug (False): whether detailed search info should be displayed for each iteration
-# 15. n_jobs (1): number of cores to be used in CV - this will be passed into cross_val_score()
-# 16. print_freq (10): print frequency for the algorithm output
-# 17. starting_imps (None): if a hot start is required
-# 18. features_to_keep_indices (None): indices of features to keep for sure, if any
-sp_run = sp_engine.run(num_features=5, iter_max=150, stall_limit=50)
+# 6.  use_hot_start (True): if hot start is to be used where initial feature importance vector is
+#     determined by random forest importance (RFI) - this usually results in faster convergence
+# 7.  hot_start_range (0.2): range for the initial feature importance vector in case of a hot start
+#     for example: for a range of 0.2, most important RFI feature will have an imp. value of 0.1 and
+#     the least important will have an imp. value of -0.1 - a value of 0 is also possible and
+#     it will result in all RFI-selected features to have 0 imp. values
+# 8.  gain_type ('bb'): either 'bb' (Barzilai & Borwein) gains or 'mon' (monotone) gains as the step size during search
+# 9.  cv_folds (5): number of folds to use during (perhaps repeated) CV both for evaluation and gradient evaluation
+# 10.  num_grad_avg (4): number of gradient estimates to be averaged for determining search direction
+#     for better gradient estimation, try increasing this number - though this will slow down the search
+# 11. cv_reps_eval (3): number of CV repetitions for evaluating a candidate feature set
+# 12. cv_reps_grad (1): number of CV repetitions for evaluating y-plus and y-minus solutions during gradient estimation
+# 13. stall_tolerance (1e-8): tolerance in objective function change for stalling
+# 14. display_rounding (3): number of digits to display during algorithm execution
+# 15. is_debug (False): whether detailed search info should be displayed for each iteration
+# 16. random_state(1): seed for controlling randomness in the execution of the algorithm
+# 17. n_jobs (1): number of cores to be used in CV - this will be passed into cross_val_score()
+# 18. print_freq (10): iteration print frequency for the algorithm output
+sp_run = sp_engine.run(num_features=5)
 
 # get the results of the run
 sp_results = sp_run.results
 
 # list of available keys in the engine output
-print('Available keys:\n', sp_results.keys())
+print('Available keys:', sp_results.keys())
 
 # performance value of the best feature set
 print('Best value:', sp_results.get('selected_ft_score_mean'))
@@ -86,6 +88,7 @@ print('Importance of selected features: ', sp_results.get('selected_ft_importanc
 # number of iterations for the optimal set
 print('Total iterations for the optimal feature set:', sp_results.get('total_iter_for_opt'))
 
+print('\n')
 
 #################################################
 # ##### REGRESSION EXAMPLE  #####################
@@ -95,23 +98,10 @@ df = load_boston()
 
 x, y = df.data, df.target
 
-wrapper = DecisionTreeRegressor(random_state=1)
-
-scoring = 'r2'
-
-# for regression problems:
-# you *** MUST *** set stratified_cv to False
-# as the default value of True will not work
-# you *** MUST *** also scale y to be between 0 and 1 for the algorithm to work properly
-y = preprocessing.MinMaxScaler().fit_transform(y.reshape(-1, 1)).flatten()
-
 # set the engine parameters
-sp_engine = SpFSR(x, y, wrapper, scoring)
+sp_engine = SpFSR(x, y, pred_type='r', scoring='r2', wrapper=DecisionTreeRegressor(random_state=1))
 
-# make sure the results are repeatable
-np.random.seed(1)
-
-sp_run = sp_engine.run(num_features=5, iter_max=150, stall_limit=50, stratified_cv=False)
+sp_run = sp_engine.run(num_features=5)
 
 sp_results = sp_run.results
 
