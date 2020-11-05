@@ -124,7 +124,7 @@ class SpFSRKernel:
 
     def shuffle_and_sample_data(self):
         if any([self._input_x_all is None, self._output_y is None]):
-            raise ValueError('Error: There is no data inside shuffle_and_sample_data()')
+            raise ValueError('There is no data inside shuffle_and_sample_data()')
         else:
             self._n_observations = self._input_x_all.shape[0]  # no. of observations in the dataset
             self._n_samples = self._input_x_all.shape[0]  # no. of observations after (any) sampling - initialization
@@ -243,7 +243,7 @@ class SpFSRKernel:
         if self._num_features_selected == 0:  # automated feature selection
             num_features_selected_actual = np.sum(imp >= 0.0)
             if num_features_selected_actual == 0:
-                raise ValueError('Error: No features found with positive importance in auto mode.')
+                raise ValueError('No features found with positive importance in auto mode.')
         else:  # user-supplied num_features_selected
             num_features_selected_actual = np.minimum(self._p_active, self._num_features_selected)
         return np.argsort(imp)[::-1][0:num_features_selected_actual].tolist()
@@ -365,7 +365,7 @@ class SpFSRKernel:
             elif self._gain_type == 'mon':
                 self._gain = self._mon_gain_a / ((curr_iter_no + self._mon_gain_A) ** self._mon_gain_alpha)
             else:
-                raise ValueError('Error: unknown gain type')
+                raise ValueError('Unknown gain type')
 
             # gain bounding
             self._gain = np.maximum(self._gain_min, (np.minimum(self._gain_max, self._gain)))
@@ -508,13 +508,13 @@ class SpFSR:
             if self._scoring is None:
                 self._scoring = 'r2'
         else:
-            raise ValueError("Error: prediction type needs to be either 'c' for classification or 'r' for regression")
+            raise ValueError("Prediction type needs to be either 'c' for classification or 'r' for regression")
 
         if ft_weighting:
             if num_features > 0 and use_hot_start and hot_start_range > 0:
-                raise ValueError('Error: in case of feature weighting and hot start, ' +
-                                 'either of num_features or hot_start_range must be 0')
-        
+                raise ValueError('In case of feature weighting and hot start, ' +
+                                 'either num_features or hot_start_range must be 0')
+
         # define a dictionary to initialize the SpFSR kernel
         sp_params = dict()
         sp_params['stratified_cv'] = stratified_cv
