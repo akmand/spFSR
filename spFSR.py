@@ -508,8 +508,13 @@ class SpFSR:
             if self._scoring is None:
                 self._scoring = 'r2'
         else:
-            raise ValueError("Error: prediction type needs to be either 'c' for classification or 'r' for regression.")
+            raise ValueError("Error: prediction type needs to be either 'c' for classification or 'r' for regression")
 
+        if ft_weighting:
+            if num_features > 0 and use_hot_start and hot_start_range > 0:
+                raise ValueError('Error: in case of feature weighting and hot start, ' +
+                                 'either of num_features or hot_start_range must be 0')
+        
         # define a dictionary to initialize the SpFSR kernel
         sp_params = dict()
         sp_params['stratified_cv'] = stratified_cv
@@ -549,5 +554,3 @@ class SpFSR:
         kernel.run_kernel()
         self.results = kernel.parse_results()
         return self
-
-            
