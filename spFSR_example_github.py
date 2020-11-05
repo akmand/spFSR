@@ -68,7 +68,7 @@ sp_engine = SpFSR(x, y, pred_type=pred_type, scoring=scoring, wrapper=wrapper)
 # 16. random_state(1): seed for controlling randomness in the execution of the algorithm
 # 17. n_jobs (1): number of cores to be used in CV - this will be passed into cross_val_score()
 # 18. print_freq (10): iteration print frequency for the algorithm output
-sp_run = sp_engine.run(num_features=5)
+sp_run = sp_engine.run(num_features=0)
 
 # get the results of the run
 sp_results = sp_run.results
@@ -101,7 +101,7 @@ x, y = df.data, df.target
 # set the engine parameters
 sp_engine = SpFSR(x, y, pred_type='r', scoring='r2', wrapper=DecisionTreeRegressor(random_state=1))
 
-sp_run = sp_engine.run(num_features=5)
+sp_run = sp_engine.run(num_features=0)
 
 sp_results = sp_run.results
 
