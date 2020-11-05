@@ -166,6 +166,10 @@ class SpFSRKernel:
         self._idx_active = list(range(self._p_all))  # initialization
         self._imp_algo_start = np.repeat(0.0, self._p_all)
 
+        if self._pred_type == 'r':
+            # for regression problems, we need to scale y to be between 0 and 1 for the algorithm to work properly
+            self._output_y = preprocessing.MinMaxScaler().fit_transform(self._output_y.reshape(-1, 1)).flatten()
+
         if self._use_hot_start:
             if self._pred_type == 'c':
                 hot_start_model = RandomForestClassifier(n_estimators=10, random_state=self._random_state)
@@ -196,7 +200,7 @@ class SpFSRKernel:
                 self._imp_algo_start = np.repeat(0.0, self._p_active)
 
         self._logger.logger.debug(f'Starting importance range: ({np.min(self._imp_algo_start)}, '
-                                 f'{np.max(self._imp_algo_start)})')
+                                  f'{np.max(self._imp_algo_start)})')
 
     def init_parameters(self):
         self._imp = self._imp_algo_start.copy()
@@ -478,7 +482,7 @@ class SpFSR:
             n_samples_max=5000,
             ft_weighting=False,
             use_hot_start=True,
-            hot_start_range=0.1,
+            hot_start_range=0.2,
             gain_type='bb',
             cv_folds=5,
             num_grad_avg=4,
@@ -545,3 +549,5 @@ class SpFSR:
         kernel.run_kernel()
         self.results = kernel.parse_results()
         return self
+
+            
