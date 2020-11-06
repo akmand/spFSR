@@ -62,7 +62,9 @@ class SpFSRKernel:
         self._mon_gain_a = 0.75
         self._mon_gain_alpha = 0.6
         #####
-        self._hot_start_num_ft_factor = 15
+        # example: if user wants 5 best features, hot start will result in 5*15 = 75 initial features 
+        # for spFSR to choose from
+        self._hot_start_num_ft_factor = 15  
         #####
         self._use_hot_start = params['use_hot_start']
         self._hot_start_range = params['hot_start_range']
@@ -85,7 +87,7 @@ class SpFSRKernel:
         self._num_cv_reps_grad = params['cv_reps_grad']
         self._num_grad_avg = params['num_grad_avg']
         #####
-        self._input_x = None  # _input_x: can change in case of a hot-start
+        self._input_x = None  # _input_x: can be different from original dataset in case of a hot-start
         self._output_y = None
         self._pred_type = None  # 'c' or 'r'
         self._n_observations = None  # in the dataset
@@ -131,9 +133,9 @@ class SpFSRKernel:
                 # don't sample more rows than what's in the dataset
                 self._n_samples = self._n_samples_max
             self._input_x, self._output_y = shuffle(self._input_x,
-                                                        self._output_y,
-                                                        n_samples=self._n_samples,
-                                                        random_state=self._random_state)
+                                                    self._output_y,
+                                                    n_samples=self._n_samples,
+                                                    random_state=self._random_state)
 
     @staticmethod
     def prepare_results_dict():
