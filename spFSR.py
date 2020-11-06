@@ -58,7 +58,7 @@ class SpFSRKernel:
         #####
         self._bb_bottom_threshold = 1e-8
         #####
-        self._mon_gain_A = 100  # SPSA-MONOTONE values from the 2016 PRL paper
+        self._mon_gain_A = 100  # monotone gain sequence values from the 2016 PRL article
         self._mon_gain_a = 0.75
         self._mon_gain_alpha = 0.6
         #####
@@ -85,16 +85,15 @@ class SpFSRKernel:
         self._num_cv_reps_grad = params['cv_reps_grad']
         self._num_grad_avg = params['num_grad_avg']
         #####
-        self._input_x_all = None
-        self._input_x_active = None  # active: after potential RF hot-start
+        self._input_x = None  # _input_x: can change in case of a hot-start
         self._output_y = None
         self._pred_type = None  # 'c' or 'r'
         self._n_observations = None  # in the dataset
         self._n_samples = None  # after any sampling
         self._wrapper = None
         self._scoring = None
-        self._idx_active = None
-        self._imp_algo_start = None  # after potential RF hot-start
+        self._idx_active = None  # indices of active features in the original dataset (before any potential hot start)
+        self._imp_algo_start = None  # after potential hot-start
         self._imp = None
         self._imp_prev = None
         self._ghat = None
@@ -116,26 +115,25 @@ class SpFSRKernel:
         self._iter_results = self.prepare_results_dict()
 
     def set_inputs(self, x, y, pred_type, scoring, wrapper):
-        self._input_x_all = x
+        self._input_x = x
         self._output_y = y
         self._pred_type = pred_type
         self._scoring = scoring
         self._wrapper = wrapper
 
     def shuffle_and_sample_data(self):
-        if any([self._input_x_all is None, self._output_y is None]):
+        if any([self._input_x is None, self._output_y is None]):
             raise ValueError('There is no data inside shuffle_and_sample_data()')
         else:
-            self._n_observations = self._input_x_all.shape[0]  # no. of observations in the dataset
-            self._n_samples = self._input_x_all.shape[0]  # no. of observations after (any) sampling - initialization
-            if self._n_samples_max and (self._n_samples_max < self._input_x_all.shape[0]):
+            self._n_observations = self._input_x.shape[0]  # no. of observations in the dataset
+            self._n_samples = self._input_x.shape[0]  # no. of observations after (any) sampling - initialization
+            if self._n_samples_max and (self._n_samples_max < self._input_x.shape[0]):
                 # don't sample more rows than what's in the dataset
                 self._n_samples = self._n_samples_max
-            self._input_x_all, self._output_y = shuffle(self._input_x_all,
+            self._input_x, self._output_y = shuffle(self._input_x,
                                                         self._output_y,
                                                         n_samples=self._n_samples,
                                                         random_state=self._random_state)
-            self._input_x_active = self._input_x_all.copy()  # initialize after shuffling!
 
     @staticmethod
     def prepare_results_dict():
@@ -157,14 +155,14 @@ class SpFSRKernel:
         self._logger.logger.info(f'Number of jobs: {self._n_jobs}')
         self._logger.logger.info(f"Number of observations in the dataset: {self._n_observations}")
         self._logger.logger.info(f"Number of observations used: {self._n_samples}")
-        self._logger.logger.info(f"Number of features available: {self._input_x_all.shape[1]}")
+        self._logger.logger.info(f"Number of features available: {self._input_x.shape[1]}")
         self._logger.logger.info(f"Number of features to select: {self._num_features_selected}")
 
     def prep_algo(self):
-        self._p_all = self._input_x_all.shape[1]
+        self._p_all = self._input_x.shape[1]
         self._p_active = self._p_all  # initialization
         self._idx_active = list(range(self._p_all))  # initialization
-        self._imp_algo_start = np.repeat(0.0, self._p_all)
+        self._imp_algo_start = np.repeat(0.0, self._p_all)  # initialization
 
         if self._pred_type == 'r':
             # for regression problems, we need to scale y to be between 0 and 1 for the algorithm to work properly
@@ -176,7 +174,7 @@ class SpFSRKernel:
             else:
                 hot_start_model = RandomForestRegressor(n_estimators=10, random_state=self._random_state)
 
-            hot_start_model.fit(self._input_x_all, self._output_y)
+            hot_start_model.fit(self._input_x, self._output_y)
 
             if self._num_features_selected == 0:
                 self._p_active = self._p_all  # select all the features in auto mode
@@ -189,9 +187,10 @@ class SpFSRKernel:
 
             hot_ft_imp_selected = [hot_ft_imp[i] for i in idx_hot_start_selected]
 
+            # need to keep track of the active feature indices in the original data to report back to the user
             self._idx_active = [self._idx_active[i] for i in idx_hot_start_selected]
 
-            self._input_x_active = self._input_x_all[:, idx_hot_start_selected]
+            self._input_x = self._input_x[:, idx_hot_start_selected]  # notice the change in _input_x with hot start
 
             if self._hot_start_range > 0:
                 hot_range = (-0.5 * self._hot_start_range, + 0.5 * self._hot_start_range)
@@ -256,9 +255,9 @@ class SpFSRKernel:
             if num_neg_imp > 0:
                 raise ValueError(f'Error in feature weighting: {num_neg_imp} negative weights encountered' +
                                  ' - try reducing number of selected features or set it to 0 for auto.')
-            x_active = curr_imp * self._input_x_active  # apply feature weighting
+            x_active = curr_imp * self._input_x  # apply feature weighting
         else:
-            x_active = self._input_x_active
+            x_active = self._input_x
         x_fs = x_active[:, selected_features]
         scores = cross_val_score(self._wrapper,
                                  x_fs,
@@ -454,7 +453,6 @@ class SpFSRKernel:
         return {'wrapper': self._wrapper,
                 'scoring': self._scoring,
                 'iter_results': self._iter_results,
-                'selected_data': self._input_x_all[:, self._best_features_in_orig_data],
                 'selected_features': self._best_features_in_orig_data,
                 'selected_ft_importance': self._best_imps,
                 'selected_num_features': len(self._best_features_in_orig_data),
