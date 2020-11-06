@@ -62,9 +62,9 @@ class SpFSRKernel:
         self._mon_gain_a = 0.75
         self._mon_gain_alpha = 0.6
         #####
-        # example: if user wants 5 best features, hot start will result in 5*15 = 75 initial features 
+        # example: if user wants 5 best features, hot start will result in 5*15 = 75 initial features
         # for spFSR to choose from
-        self._hot_start_num_ft_factor = 15  
+        self._hot_start_num_ft_factor = 15
         #####
         self._use_hot_start = params['use_hot_start']
         self._hot_start_range = params['hot_start_range']
@@ -147,19 +147,6 @@ class SpFSRKernel:
         iter_results['feature_indices'] = list()
         return iter_results
 
-    def print_algo_info(self):
-        self._logger.logger.info(f'Wrapper: {self._wrapper}')
-        self._logger.logger.info(f'Hot start: {self._use_hot_start}')
-        if self._use_hot_start:
-            self._logger.logger.info(f'Hot start range: {self._hot_start_range}')
-        self._logger.logger.info(f'Feature weighting: {self._ft_weighting}')
-        self._logger.logger.info(f'Scoring metric: {self._scoring}')
-        self._logger.logger.info(f'Number of jobs: {self._n_jobs}')
-        self._logger.logger.info(f"Number of observations in the dataset: {self._n_observations}")
-        self._logger.logger.info(f"Number of observations used: {self._n_samples}")
-        self._logger.logger.info(f"Number of features available: {self._input_x.shape[1]}")
-        self._logger.logger.info(f"Number of features to select: {self._num_features_selected}")
-
     def prep_algo(self):
         self._p_all = self._input_x.shape[1]
         self._p_active = self._p_all  # initialization
@@ -202,6 +189,19 @@ class SpFSRKernel:
 
         self._logger.logger.debug(f'Starting importance range: ({np.min(self._imp_algo_start)}, '
                                   f'{np.max(self._imp_algo_start)})')
+
+    def print_algo_info(self):
+        self._logger.logger.info(f'Wrapper: {self._wrapper}')
+        self._logger.logger.info(f'Hot start: {self._use_hot_start}')
+        if self._use_hot_start:
+            self._logger.logger.info(f'Hot start range: {self._hot_start_range}')
+        self._logger.logger.info(f'Feature weighting: {self._ft_weighting}')
+        self._logger.logger.info(f'Scoring metric: {self._scoring}')
+        self._logger.logger.info(f'Number of jobs: {self._n_jobs}')
+        self._logger.logger.info(f"Number of observations in the dataset: {self._n_observations}")
+        self._logger.logger.info(f"Number of observations used: {self._n_samples}")
+        self._logger.logger.info(f"Number of features available: {self._p_all}")
+        self._logger.logger.info(f"Number of features to select: {self._num_features_selected}")
 
     def init_parameters(self):
         self._imp = self._imp_algo_start.copy()
@@ -554,3 +554,4 @@ class SpFSR:
         kernel.run_kernel()
         self.results = kernel.parse_results()
         return self
+
