@@ -62,9 +62,11 @@ class SpFSRKernel:
         self._mon_gain_a = 0.75
         self._mon_gain_alpha = 0.6
         #####
-        # example: if user wants 5 best features, hot start will result in 5*15 = 75 initial features
+        # example: if user wants 5 best features, hot start will result in max. 5*15 = 75 initial features
         # for spFSR to choose from
         self._hot_start_num_ft_factor = 15
+        # example: if user wants auto, hot start will result in max. 100 initial features for spFSR to choose from
+        self._hot_start_max_auto_num_ft = 150
         #####
         self._use_hot_start = params['use_hot_start']
         self._hot_start_range = params['hot_start_range']
@@ -166,7 +168,7 @@ class SpFSRKernel:
             hot_start_model.fit(self._input_x, self._output_y)
 
             if self._num_features_selected == 0:
-                self._p_active = self._p_all  # select all the features in auto mode
+                self._p_active = min(self._p_all, self._hot_start_max_auto_num_ft)
             else:
                 self._p_active = min(self._p_all, self._num_features_selected * self._hot_start_num_ft_factor)
 
@@ -478,7 +480,7 @@ class SpFSR:
     def run(self,
             num_features=0,
             iter_max=100,
-            stall_limit=30,
+            stall_limit=40,
             n_samples_max=5000,
             ft_weighting=False,
             use_hot_start=True,
