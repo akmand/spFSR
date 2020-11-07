@@ -480,7 +480,7 @@ class SpFSR:
     def run(self,
             num_features=0,
             iter_max=100,
-            stall_limit=40,
+            stall_limit=35,
             n_samples_max=5000,
             ft_weighting=False,
             use_hot_start=True,
