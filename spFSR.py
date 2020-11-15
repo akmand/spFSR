@@ -161,9 +161,9 @@ class SpFSRKernel:
 
         if self._use_hot_start:
             if self._pred_type == 'c':
-                hot_start_model = RandomForestClassifier(n_estimators=10, random_state=self._random_state)
+                hot_start_model = RandomForestClassifier(n_estimators=100, random_state=self._random_state)
             else:
-                hot_start_model = RandomForestRegressor(n_estimators=10, random_state=self._random_state)
+                hot_start_model = RandomForestRegressor(n_estimators=100, random_state=self._random_state)
 
             hot_start_model.fit(self._input_x, self._output_y)
 
