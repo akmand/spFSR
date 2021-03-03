@@ -62,9 +62,9 @@ class SpFSRKernel:
         self._mon_gain_a = 0.75
         self._mon_gain_alpha = 0.6
         #####
-        # example: if user wants 5 best features, hot start will result in max. 5*10 = 50 initial features
+        # example: if user wants 5 best features, hot start will result in max. 5*10 = 75 initial features
         # for spFSR to choose from
-        self._hot_start_num_ft_factor = 10
+        self._hot_start_num_ft_factor = 15
         # example: if user wants auto, hot start will result in max. 100 initial features for spFSR to choose from
         self._hot_start_max_auto_num_ft = 100
         #####
