@@ -62,7 +62,7 @@ class SpFSRKernel:
         self._mon_gain_a = 0.75
         self._mon_gain_alpha = 0.6
         #####
-        # example: if user wants 5 best features, hot start will result in max. 5*10 = 75 initial features
+        # example: if user wants 5 best features, hot start will result in max. 5*15 = 75 initial features
         # for spFSR to choose from
         self._hot_start_num_ft_factor = 15
         # example: if user wants auto, hot start will result in max. 100 initial features for spFSR to choose from
@@ -112,12 +112,19 @@ class SpFSRKernel:
         self._run_time = -1
         self._best_iter = -1
         self._gain = -1
+        #####
         self._selected_features = list()
         self._selected_features_prev = list()
         self._best_features_in_orig_data = list()
         self._best_features_active = list()
         self._best_imps = list()
-        self._iter_results = self.prepare_results_dict()
+        #####
+        self._iter_results = dict()
+        self._iter_results['values'] = list()
+        self._iter_results['st_devs'] = list()
+        self._iter_results['gains'] = list()
+        self._iter_results['importance'] = list()
+        self._iter_results['feature_indices'] = list()
 
     def set_inputs(self, x, y, pred_type, scoring, wrapper):
         self._input_x = x
@@ -139,16 +146,6 @@ class SpFSRKernel:
                                                     self._output_y,
                                                     n_samples=self._n_samples,
                                                     random_state=self._random_state)
-
-    @staticmethod
-    def prepare_results_dict():
-        iter_results = dict()
-        iter_results['values'] = list()
-        iter_results['st_devs'] = list()
-        iter_results['gains'] = list()
-        iter_results['importance'] = list()
-        iter_results['feature_indices'] = list()
-        return iter_results
 
     def prep_algo(self):
         self._p_all = self._input_x.shape[1]
@@ -209,8 +206,8 @@ class SpFSRKernel:
         self._logger.logger.info(f"Number of features to select: {self._num_features_selected}")
 
     def init_parameters(self):
-        self._imp = self._imp_algo_start.copy()
-        self._imp_prev = self._imp.copy()
+        self._imp = self._imp_algo_start
+        self._imp_prev = self._imp
         self._ghat = np.repeat(0.0, self._p_active)
 
     def gen_cv_task(self):
@@ -395,7 +392,7 @@ class SpFSRKernel:
 
             # make sure we move to a new solution by going further in the same direction
             same_feature_counter = 0
-            curr_imp_orig = self._imp.copy()
+            curr_imp_orig = self._imp
             same_feature_step_size = (self._gain_max - self._gain_min) / self._stall_limit
             while np.array_equal(sel_ft_prev_sorted, np.sort(self._selected_features)):
                 same_feature_counter = same_feature_counter + 1
