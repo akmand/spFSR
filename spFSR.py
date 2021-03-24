@@ -502,13 +502,13 @@ class SpFSR:
         if self._pred_type == 'c':
             stratified_cv = True
             if self._wrapper is None:
-                self._wrapper = RandomForestClassifier(n_estimators=rf_n_estimators_filter, random_state=random_state, max_depth=10, class_weight='balanced_subsample')
+                self._wrapper = RandomForestClassifier(n_estimators=rf_n_estimators_filter, random_state=random_state, class_weight='balanced_subsample')
             if self._scoring is None:
                 self._scoring = 'accuracy'
         elif self._pred_type == 'r':
             stratified_cv = False
             if self._wrapper is None:
-                self._wrapper = RandomForestRegressor(n_estimators=rf_n_estimators_filter, random_state=random_state, max_depth=10)
+                self._wrapper = RandomForestRegressor(n_estimators=rf_n_estimators_filter, random_state=random_state)
             if self._scoring is None:
                 self._scoring = 'r2'
         else:
