@@ -56,19 +56,20 @@ sp_engine = SpFSR(x, y, pred_type=pred_type, scoring=scoring, wrapper=wrapper)
 #     for example: for a range of 0.2, most important RFI feature will have an imp. value of 0.1 and
 #     the least important will have an imp. value of -0.1 - a value of 0 is also possible and
 #     it will result in all RFI-selected features to have 0 imp. values
-# 8.  rf_n_estimators (50): number of estimators for hot start RFI as well as for prediction RFI in FILTER mode
-# 9.  gain_type ('bb'): either 'bb' (Barzilai & Borwein) gains or 'mon' (monotone) gains as the step size during search
-# 10.  cv_folds (5): number of folds to use during (perhaps repeated) CV both for evaluation and gradient evaluation
-# 11.  num_grad_avg (4): number of gradient estimates to be averaged for determining search direction
+# 8.  rf_n_estimators_hotstart (50): number of estimators for hot start RFI
+# 9.  rf_n_estimators_filter (10): number of estimators for prediction RFI in FILTER mode
+# 10.  gain_type ('bb'): either 'bb' (Barzilai & Borwein) gains or 'mon' (monotone) gains as the step size during search
+# 11.  cv_folds (5): number of folds to use during (perhaps repeated) CV both for evaluation and gradient evaluation
+# 12.  num_grad_avg (4): number of gradient estimates to be averaged for determining search direction
 #     for better gradient estimation, try increasing this number - though this will slow down the search
-# 12. cv_reps_eval (3): number of CV repetitions for evaluating a candidate feature set
-# 13. cv_reps_grad (1): number of CV repetitions for evaluating y-plus and y-minus solutions during gradient estimation
-# 14. stall_tolerance (1e-8): tolerance in objective function change for stalling
-# 15. display_rounding (3): number of digits to display during algorithm execution
-# 16. is_debug (False): whether detailed search info should be displayed for each iteration
-# 17. random_state(1): seed for controlling randomness in the execution of the algorithm
-# 18. n_jobs (1): number of cores to be used in CV - this will be passed into cross_val_score()
-# 19. print_freq (10): iteration print frequency for the algorithm output
+# 13. cv_reps_eval (3): number of CV repetitions for evaluating a candidate feature set
+# 14. cv_reps_grad (1): number of CV repetitions for evaluating y-plus and y-minus solutions during gradient estimation
+# 15. stall_tolerance (1e-8): tolerance in objective function change for stalling
+# 16. display_rounding (3): number of digits to display during algorithm execution
+# 17. is_debug (False): whether detailed search info should be displayed for each iteration
+# 18. random_state(1): seed for controlling randomness in the execution of the algorithm
+# 19. n_jobs (1): number of cores to be used in CV - this will be passed into cross_val_score()
+# 20. print_freq (10): iteration print frequency for the algorithm output
 sp_run = sp_engine.run(num_features=5)
 
 # get the results of the run
