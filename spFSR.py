@@ -70,7 +70,7 @@ class SpFSRKernel:
         #####
         self._use_hot_start = params['use_hot_start']
         self._hot_start_range = params['hot_start_range']
-        self._rf_n_estimators = params['rf_n_estimators']
+        self._rf_n_estimators_hotstart = params['rf_n_estimators_hotstart']
         self._gain_type = params['gain_type']
         self._num_features_selected = params['num_features']
         self._iter_max = params['iter_max']
@@ -159,10 +159,10 @@ class SpFSRKernel:
 
         if self._use_hot_start:
             if self._pred_type == 'c':
-                hot_start_model = RandomForestClassifier(n_estimators=self._rf_n_estimators,
+                hot_start_model = RandomForestClassifier(n_estimators=self._rf_n_estimators_hotstart,
                                                          random_state=self._random_state)
             else:
-                hot_start_model = RandomForestRegressor(n_estimators=self._rf_n_estimators,
+                hot_start_model = RandomForestRegressor(n_estimators=self._rf_n_estimators_hotstart,
                                                         random_state=self._random_state)
 
             hot_start_model.fit(self._input_x, self._output_y)
@@ -485,7 +485,8 @@ class SpFSR:
             ft_weighting=False,
             use_hot_start=True,
             hot_start_range=0.2,
-            rf_n_estimators=50,
+            rf_n_estimators_hotstart=50,
+            rf_n_estimators_filter=10,
             gain_type='bb',
             cv_folds=5,
             num_grad_avg=4,
@@ -501,13 +502,13 @@ class SpFSR:
         if self._pred_type == 'c':
             stratified_cv = True
             if self._wrapper is None:
-                self._wrapper = RandomForestClassifier(n_estimators=rf_n_estimators, random_state=random_state)
+                self._wrapper = RandomForestClassifier(n_estimators=rf_n_estimators_filter, random_state=random_state, max_depth=10, class_weight='balanced_subsample')
             if self._scoring is None:
                 self._scoring = 'accuracy'
         elif self._pred_type == 'r':
             stratified_cv = False
             if self._wrapper is None:
-                self._wrapper = RandomForestRegressor(n_estimators=rf_n_estimators, random_state=random_state)
+                self._wrapper = RandomForestRegressor(n_estimators=rf_n_estimators_filter, random_state=random_state, max_depth=10)
             if self._scoring is None:
                 self._scoring = 'r2'
         else:
@@ -523,7 +524,7 @@ class SpFSR:
         sp_params['stratified_cv'] = stratified_cv
         sp_params['use_hot_start'] = use_hot_start
         sp_params['hot_start_range'] = hot_start_range
-        sp_params['rf_n_estimators'] = rf_n_estimators
+        sp_params['rf_n_estimators_hotstart'] = rf_n_estimators_hotstart
         sp_params['gain_type'] = gain_type
         sp_params['num_features'] = num_features
         sp_params['iter_max'] = iter_max
