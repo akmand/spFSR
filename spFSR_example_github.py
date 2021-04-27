@@ -47,7 +47,7 @@ sp_engine = SpFSR(x, y, pred_type=pred_type, scoring=scoring, wrapper=wrapper)
 # 1.  num_features (0): number of features to select - a value of 0 results in automatic feature selection
 # 2.  iter_max (100): max number of iterations
 # 3.  stall_limit (35): when to restart the search (up to iter_max) - should be about iter_max/3
-# 4.  n_samples_max (5000): max number of randomly selected observations to be used during search
+# 4.  n_samples_max (2500): max number of randomly selected observations to be used during search
 #     can be 'None' for using all available observations
 # 5.  ft_weighting (False): if features should be weighted by their importance values - this usually helps with kNN's.
 # 6.  use_hot_start (True): if hot start is to be used where initial feature importance vector is
@@ -57,7 +57,7 @@ sp_engine = SpFSR(x, y, pred_type=pred_type, scoring=scoring, wrapper=wrapper)
 #     the least important will have an imp. value of -0.1 - a value of 0 is also possible and
 #     it will result in all RFI-selected features to have 0 imp. values
 # 8.  rf_n_estimators_hotstart (50): number of estimators for hot start RFI
-# 9.  rf_n_estimators_filter (10): number of estimators for prediction RFI in FILTER mode
+# 9.  rf_n_estimators_filter (5): number of estimators for prediction RFI in FILTER mode
 # 10.  gain_type ('bb'): either 'bb' (Barzilai & Borwein) gains or 'mon' (monotone) gains as the step size during search
 # 11.  cv_folds (5): number of folds to use during (perhaps repeated) CV both for evaluation and gradient evaluation
 # 12.  num_grad_avg (4): number of gradient estimates to be averaged for determining search direction
