@@ -64,9 +64,9 @@ class SpFSRKernel:
         #####
         # example: if user wants 5 best features, hot start will result in max. 5*15 = 75 initial features
         # for spFSR to choose from
-        self._hot_start_num_ft_factor = 15
+        self._hot_start_num_ft_factor = 10
         # example: if user wants auto, hot start will result in max. 100 initial features for spFSR to choose from
-        self._hot_start_max_auto_num_ft = 100
+        self._hot_start_max_auto_num_ft = 50
         #####
         self._use_hot_start = params['use_hot_start']
         self._hot_start_range = params['hot_start_range']
@@ -481,12 +481,12 @@ class SpFSR:
             num_features=0,
             iter_max=100,
             stall_limit=35,
-            n_samples_max=5000,
+            n_samples_max=2500,
             ft_weighting=False,
             use_hot_start=True,
             hot_start_range=0.2,
             rf_n_estimators_hotstart=50,
-            rf_n_estimators_filter=10,
+            rf_n_estimators_filter=5,
             gain_type='bb',
             cv_folds=5,
             num_grad_avg=4,
