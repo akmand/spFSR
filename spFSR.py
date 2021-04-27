@@ -64,9 +64,9 @@ class SpFSRKernel:
         #####
         # example: if user wants 5 best features, hot start will result in max. 5*15 = 75 initial features
         # for spFSR to choose from
-        self._hot_start_num_ft_factor = 10
-        # example: if user wants auto, hot start will result in max. 100 initial features for spFSR to choose from
-        self._hot_start_max_auto_num_ft = 50
+        self._hot_start_num_ft_factor = 15
+        # example: if user wants auto, hot start will result in max. 75 initial features for spFSR to choose from
+        self._hot_start_max_auto_num_ft = 75
         #####
         self._use_hot_start = params['use_hot_start']
         self._hot_start_range = params['hot_start_range']
