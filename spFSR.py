@@ -62,15 +62,11 @@ class SpFSRKernel:
         self._mon_gain_a = 0.75
         self._mon_gain_alpha = 0.6
         #####
-        # example: if user wants 5 best features, hot start will result in max. 5*15 = 75 initial features
-        # for spFSR to choose from
-        self._hot_start_num_ft_factor = 15
-        # example: if user wants auto, hot start will result in max. 75 initial features for spFSR to choose from
-        self._hot_start_max_auto_num_ft = 75
-        #####
+        self._hot_start_num_ft_factor = params['hot_start_num_ft_factor']
+        self._hot_start_max_auto_num_ft = params['hot_start_max_auto_num_ft']
         self._use_hot_start = params['use_hot_start']
         self._hot_start_range = params['hot_start_range']
-        self._rf_n_estimators_hotstart = params['rf_n_estimators_hotstart']
+        self._rf_n_estimators_hot_start = params['rf_n_estimators_hot_start']
         self._gain_type = params['gain_type']
         self._num_features_selected = params['num_features']
         self._iter_max = params['iter_max']
@@ -159,10 +155,10 @@ class SpFSRKernel:
 
         if self._use_hot_start:
             if self._pred_type == 'c':
-                hot_start_model = RandomForestClassifier(n_estimators=self._rf_n_estimators_hotstart,
+                hot_start_model = RandomForestClassifier(n_estimators=self._rf_n_estimators_hot_start,
                                                          random_state=self._random_state)
             else:
-                hot_start_model = RandomForestRegressor(n_estimators=self._rf_n_estimators_hotstart,
+                hot_start_model = RandomForestRegressor(n_estimators=self._rf_n_estimators_hot_start,
                                                         random_state=self._random_state)
 
             hot_start_model.fit(self._input_x, self._output_y)
@@ -469,23 +465,17 @@ class SpFSRKernel:
 
 
 class SpFSR:
-    def __init__(self, x, y, pred_type, scoring=None, wrapper=None):
-        self._x = x
-        self._y = y
-        self._pred_type = pred_type
-        self._scoring = scoring
-        self._wrapper = wrapper
-        self.results = None
-
     def run(self,
             num_features=0,
             iter_max=100,
             stall_limit=35,
             n_samples_max=2500,
             ft_weighting=False,
+            hot_start_num_ft_factor=15,
+            hot_start_max_auto_num_ft=75,
             use_hot_start=True,
             hot_start_range=0.2,
-            rf_n_estimators_hotstart=50,
+            rf_n_estimators_hot_start=50,
             rf_n_estimators_filter=5,
             gain_type='bb',
             cv_folds=5,
@@ -522,9 +512,11 @@ class SpFSR:
         # define a dictionary to initialize the SpFSR kernel
         sp_params = dict()
         sp_params['stratified_cv'] = stratified_cv
+        sp_params['hot_start_num_ft_factor'] = hot_start_num_ft_factor
+        sp_params['hot_start_max_auto_num_ft'] = hot_start_max_auto_num_ft
         sp_params['use_hot_start'] = use_hot_start
         sp_params['hot_start_range'] = hot_start_range
-        sp_params['rf_n_estimators_hotstart'] = rf_n_estimators_hotstart
+        sp_params['rf_n_estimators_hot_start'] = rf_n_estimators_hot_start
         sp_params['gain_type'] = gain_type
         sp_params['num_features'] = num_features
         sp_params['iter_max'] = iter_max
@@ -559,4 +551,12 @@ class SpFSR:
         kernel.run_kernel()
         self.results = kernel.parse_results()
         return self
+
+    def __init__(self, x, y, pred_type, scoring=None, wrapper=None):
+        self._x = x
+        self._y = y
+        self._pred_type = pred_type
+        self._scoring = scoring
+        self._wrapper = wrapper
+        self.results = None
 
